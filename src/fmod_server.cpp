@@ -569,7 +569,10 @@ void FmodServer::load_all_plugins(const Ref<FmodPluginsSettings>& p_settings) {
 }
 
 uint32_t FmodServer::load_plugin(const String& p_plugin_path, uint32_t p_priority) {
-#ifndef IOS_ENABLED
+#if defined(WEB_ENABLED)
+    // FMOD's HTML5 build has no dynamic library loading, plugins would have to be linked into the web template.
+    GODOT_LOG_WARNING(vformat("FMOD plugins are not supported on web, %s will not be loaded.", p_plugin_path))
+#elif !defined(IOS_ENABLED)
     return cache->add_plugin(p_plugin_path, p_priority);
 #endif
     return 0xFFFFFFFF;

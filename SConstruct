@@ -134,19 +134,10 @@ elif env["platform"] == "android":
     env.Append(LIBS=[libfmod, libfmodstudio])
 
 elif env["platform"] == "web":
-    html_lib = os.path.join(fmod_lib_dir, 'api/studio/lib/w32/')
-    html_inc = os.path.join(fmod_lib_dir, 'api/studio/inc/')
-
-    html_core_lib = os.path.join(fmod_lib_dir, 'api/core/lib/w32/')
-    html_core_inc = os.path.join(fmod_lib_dir, 'api/core/inc/')
-
-    libfmodstudio_path = os.path.join(html_lib, 'fmodstudio%s_wasm.a' % lfix)
-
-    env.Append(CPPPATH=[html_inc, html_core_inc])
-    env.Append(LIBPATH=[html_lib])
-    # env.Append(LIBS=[libfmodstudio])  # ← REMOVE or comment this out
-    env.Append(LINKFLAGS=[libfmodstudio_path])
-    env.Append(LINKFLAGS=["-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,setValue,getValue"])
+    # FMOD is not linked here: its HTML5 build only works inside Emscripten's main module, while GDExtensions are
+    # side modules. FMOD gets linked into a custom web export template instead (see tools/web/), and this side module
+    # resolves FMOD symbols against it when Godot loads the extension.
+    env.Append(CPPPATH=[env['fmod_lib_dir'] + 'web/core/inc/', env['fmod_lib_dir'] + 'web/studio/inc/'])
 
 #Output is placed in the addons directory of the demo project directly
 target = "{}{}/{}.{}.{}".format(

@@ -30,8 +30,10 @@ Sconstruct.
 In order to compile you should run `scons` command, as for all gdextension projects.
 
 ```
-scons platform=<macos|linux|windows|ios|android> target=<editor|template_debug|template_release> --jobs=<desired number of threads>
+scons platform=<macos|linux|windows|ios|android|web> target=<editor|template_debug|template_release> --jobs=<desired number of threads>
 ```
+
+Web builds need a custom export template, see [Web (HTML5) export](2-web.md).
 
 If `target` is `editor` or `template_debug`, debug symbols will be generated.
 
