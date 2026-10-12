@@ -8,8 +8,10 @@ Godot itself is built as a side module and the main module is a small runtime (w
 option would add FMOD to both, so we hook only the main runtime environment (sys_env).
 
 Libraries to link are read at build time from the GODOT_WEB_MAIN_MODULE_LIBS environment variable
-(paths separated by os.pathsep). They are linked with --whole-archive so that every FMOD symbol is exported
-(the main module is built with EXPORT_ALL=1) and can be resolved by the GDExtension side module.
+(paths separated by os.pathsep). The main module is built with MAIN_MODULE=1, for which emscripten already wraps the
+whole link in --whole-archive and exports everything, so every FMOD symbol can be resolved by the GDExtension side
+module. Do not add --whole-archive/--no-whole-archive here: they do not nest, and a --no-whole-archive would stop
+emscripten's system libraries (libc, libc++...) from being fully linked and exported.
 
 Usage: python patch_godot_web_scsub.py <path to godot source>
 """
@@ -24,7 +26,7 @@ PATCH = """    {marker}
     import os as _fmod_os
 
     for _lib in [l for l in _fmod_os.environ.get("GODOT_WEB_MAIN_MODULE_LIBS", "").split(_fmod_os.pathsep) if l]:
-        sys_env.Append(LINKFLAGS=["-Wl,--whole-archive", _lib, "-Wl,--no-whole-archive"])
+        sys_env.Append(LINKFLAGS=[_lib])
 """.format(marker=MARKER)
 
 

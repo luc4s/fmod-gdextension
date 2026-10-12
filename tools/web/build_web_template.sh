@@ -50,8 +50,6 @@ fi
 python "$SCRIPT_DIR/patch_godot_web_scsub.py" "$GODOT_DIR"
 
 cd "$GODOT_DIR"
-# EMCC_FORCE_STDLIBS: link and export all of libc/libc++ from the main runtime, side modules (the extension, FMOD's
-# C++ code) may import libc++ globals the runtime itself does not use (e.g. std::ctype<char>::id).
-EMCC_FORCE_STDLIBS=1 GODOT_WEB_MAIN_MODULE_LIBS="$MAIN_MODULE_LIBS" scons platform=web target="$TARGET" dlink_enabled=yes threads=no "$@"
+GODOT_WEB_MAIN_MODULE_LIBS="$MAIN_MODULE_LIBS" scons platform=web target="$TARGET" dlink_enabled=yes threads=no "$@"
 
 ls -la bin/*.zip
