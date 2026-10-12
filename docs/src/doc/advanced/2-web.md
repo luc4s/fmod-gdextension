@@ -40,7 +40,8 @@ tools/web/build_web_template.sh <godot source dir> ../libs/fmod/web <template_de
 ```
 
 The script patches Godot's `platform/web/SCsub` so FMOD is linked into the main runtime module only.
-It then builds the template with `dlink_enabled=yes threads=no`.
+It then builds the template with `dlink_enabled=yes threads=no` and `EMCC_FORCE_STDLIBS=1`, so the runtime exports all of
+libc/libc++ for the extension to use.
 The template is written to `<godot source dir>/bin/godot.web.<target>.wasm32.nothreads.dlink.zip`.
 `template_debug` links FMOD's logging libraries (`fmodstudioL_wasm.a`), and `template_release` links the release ones.
 
