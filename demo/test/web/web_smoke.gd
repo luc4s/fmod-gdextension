@@ -5,6 +5,8 @@ extends Node
 
 const TIMEOUT_SEC: float = 15.0
 
+# Banks are unloaded when their FmodBank is freed, keep references for the whole test.
+var banks: Array[FmodBank] = []
 var event: FmodEvent = null
 var elapsed: float = 0.0
 var done: bool = false
@@ -16,6 +18,8 @@ func _ready():
 		if bank == null or not bank.is_valid():
 			_finish(false, "cannot load bank %s" % bank_name)
 			return
+		banks.append(bank)
+		print("FMOD_WEB_SMOKE: loaded %s (%d events)" % [bank.get_path(), bank.get_event_description_count()])
 	event = FmodServer.create_event_instance("event:/Music/Level 02")
 	if event == null:
 		_finish(false, "cannot create event")

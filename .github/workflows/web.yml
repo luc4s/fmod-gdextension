@@ -60,7 +60,16 @@ jobs:
       - name: List FMOD HTML5 libraries
         run: find ../libs/fmod/web -name "*.a" -o -name "*.js" -o -name "*.wasm" | sort
 
+      # The template only depends on these inputs, rebuilding it takes ~20 minutes.
+      - name: Restore Godot web export template from cache
+        id: template-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/godot/bin/*.zip
+          key: godot-web-fmod-${{ matrix.target }}-godot${{ env.GODOT_VERSION }}-em${{ env.EM_VERSION }}-fmod${{ env.FMOD_VERSION }}-${{ hashFiles('tools/web/build_web_template.sh', 'tools/web/patch_godot_web_scsub.py') }}
+
       - name: Build Godot web export template with FMOD
+        if: steps.template-cache.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 --branch ${{ env.GODOT_VERSION }}-stable https://github.com/godotengine/godot ${{ runner.temp }}/godot
           tools/web/build_web_template.sh ${{ runner.temp }}/godot ../libs/fmod/web ${{ matrix.target }} -j$(nproc)

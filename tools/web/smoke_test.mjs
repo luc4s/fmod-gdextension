@@ -44,6 +44,30 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage();
 
+// Track AudioWorklet setup: FMOD (like Godot) mixes through an AudioWorkletNode, if it never starts the mixer
+// does not run. Reported at the end to tell apart FMOD issues from a browser without working audio.
+await page.addInitScript(() => {
+  const stats = { modules: 0, resolved: 0, rejected: 0, nodes: [] };
+  window.__audioStats = stats;
+  const addModule = AudioWorklet.prototype.addModule;
+  AudioWorklet.prototype.addModule = function (...args) {
+    stats.modules++;
+    return addModule.apply(this, args).then(
+      (value) => { stats.resolved++; return value; },
+      (error) => { stats.rejected++; throw error; },
+    );
+  };
+  const WorkletNode = window.AudioWorkletNode;
+  window.AudioWorkletNode = class extends WorkletNode {
+    constructor(context, name, options) {
+      super(context, name, options);
+      const node = { name, messages: 0 };
+      stats.nodes.push(node);
+      this.port.addEventListener("message", () => node.messages++);
+    }
+  };
+});
+
 let result = null;
 const finished = new Promise((resolve) => {
   page.on("console", (message) => {
@@ -61,6 +85,7 @@ console.log(`Loading ${url}`);
 await page.goto(url);
 await Promise.race([finished, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
 
+console.log(`AudioWorklet: ${JSON.stringify(await page.evaluate(() => window.__audioStats))}`);
 await browser.close();
 server.close();
 
