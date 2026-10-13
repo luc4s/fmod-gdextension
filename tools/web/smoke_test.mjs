@@ -221,9 +221,18 @@ try {
 }
 
 ws.close();
-browser.kill("SIGKILL");
 server.close();
-rmSync(userDataDir, { recursive: true, force: true });
+browser.kill("SIGKILL");
+// Chrome keeps writing to its profile until it is gone, remove the directory only afterwards.
+await new Promise((resolve) => {
+  browser.once("exit", resolve);
+  setTimeout(resolve, 5000);
+});
+try {
+  rmSync(userDataDir, { recursive: true, force: true });
+} catch (error) {
+  console.log(`Could not remove ${userDataDir}: ${error.message}`);
+}
 
 const fmodNode = audioStats?.nodes.find((node) => node.name === "audio-processor");
 if (fmodNode && fmodNode.messages) {
