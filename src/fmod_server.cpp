@@ -806,6 +806,16 @@ void FmodServer::set_system_dsp_buffer_size(const Ref<FmodDspSettings>& p_settin
     unsigned int buffer_length = p_settings->get_dsp_buffer_size();
     int num_buffers = p_settings->get_dsp_buffer_count();
 
+#if defined(WEB_ENABLED)
+    if (buffer_length < FmodDspSettings::DEFAULT_DSP_BUFFER_SIZE_WEB) {
+        GODOT_LOG_WARNING(vformat(
+          "FMOD Sound System: DSP buffer size %d is small for the web, where FMOD mixes on the main thread. Sizes below %d usually crackle, see the web documentation.",
+          buffer_length,
+          FmodDspSettings::DEFAULT_DSP_BUFFER_SIZE_WEB
+        ))
+    }
+#endif
+
     if (buffer_length > 0 && num_buffers > 0 && ERROR_CHECK(coreSystem->setDSPBufferSize(buffer_length, num_buffers))) {
         GODOT_LOG_VERBOSE("FMOD Sound System: Successfully set DSP buffer size")
     } else {

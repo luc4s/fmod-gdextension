@@ -21,7 +21,6 @@ env:
   TARGET_PATH: demo/addons/fmod/libs/
   TARGET_NAME: libGodotFmod
   FMOD_VERSION: 20306
-  PLAYWRIGHT_VERSION: 1.55.0
 jobs:
   build:
     name: Web ${{ matrix.target }}
@@ -96,11 +95,9 @@ jobs:
           $GODOT_EDITOR --headless --path demo ${{ matrix.export-flag }} "Web" "$PWD/build/web/index.html"
           ls -la build/web
 
-      - name: Run smoke test in headless Chromium
-        run: |
-          npm install --no-save playwright@${{ env.PLAYWRIGHT_VERSION }}
-          npx playwright install --with-deps chromium
-          node tools/web/smoke_test.mjs build/web 120
+      # Drives the runner's Google Chrome over the DevTools protocol, see tools/web/smoke_test.mjs.
+      - name: Run smoke test in headless Chrome
+        run: node tools/web/smoke_test.mjs build/web 120
 
       - name: Upload exported demo
         if: always()
