@@ -184,8 +184,8 @@ jobs:
           additional-python-packages: ${{ matrix.additional-python-packages }}
           flags: ${{ matrix.flags }}
           fmod-executable-suffix: ${{ matrix.fmod-executable-suffix }}
-          fmod-user: ${{ secrets.FMODUSER }}
-          fmod-password: ${{ secrets.FMODPASS }}
+          fmod-user: ${{ secrets.FMODUSER || secrets.FMOD_USER }}
+          fmod-password: ${{ secrets.FMODPASS || secrets.FMOD_PWD }}
           shell: ${{ matrix.shell }}
 
       - name: Download godot engine
