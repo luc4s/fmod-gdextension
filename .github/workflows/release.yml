@@ -11,6 +11,8 @@ env:
   TARGET_PATH: demo/addons/fmod/libs/
   TARGET_NAME: libGodotFmod
   FMOD_VERSION: 20306
+  # Must match the emscripten version used by Godot's own web CI for GODOT_VERSION.
+  EM_VERSION: 4.0.11
 jobs:
   build:
     name: ${{ matrix.name }}
@@ -144,7 +146,7 @@ jobs:
         if: ${{ matrix.platform == 'android' }}
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r23c
+          ndk-version: r28c
           link-to-sdk: true
 
       - name: Compile native plugin
@@ -155,12 +157,44 @@ jobs:
           additional-python-packages: ${{ matrix.additional-python-packages }}
           flags: ${{ matrix.flags }}
           fmod-executable-suffix: ${{ matrix.fmod-executable-suffix }}
-          fmod-user: ${{ secrets.FMODUSER }}
-          fmod-password: ${{ secrets.FMODPASS }}
+          fmod-user: ${{ secrets.FMODUSER || secrets.FMOD_USER }}
+          fmod-password: ${{ secrets.FMODPASS || secrets.FMOD_PWD }}
           shell: ${{ matrix.shell }}
 
+  # The web library is a side module without FMOD inside (FMOD lives in a custom export template, see
+  # docs/src/doc/advanced/2-web.md), so it can be shipped with the addon.
+  build-web:
+    name: Web ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [template_debug, template_release]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          submodules: recursive
+
+      - name: Install Emscripten SDK
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EM_VERSION }}
+          actions-cache-folder: emsdk-cache-${{ matrix.target }}
+
+      - name: Compile native plugin
+        uses: ./.github/actions/create-native-build
+        with:
+          platform: web
+          target: ${{ matrix.target }}
+          fmod-executable-suffix: html5.zip
+          fmod-user: ${{ secrets.FMODUSER || secrets.FMOD_USER }}
+          fmod-password: ${{ secrets.FMODPASS || secrets.FMOD_PWD }}
+          shell: bash
+
   package-godot-addon:
-    needs: [build]
+    needs: [build, build-web]
     strategy:
       matrix:
         include:
@@ -261,6 +295,18 @@ jobs:
         with:
           name: android-template_release
           path: demo/addons/fmod/libs/android/
+
+      - name: Download web template_debug libraries
+        uses: actions/download-artifact@v4
+        with:
+          name: web-template_debug
+          path: demo/addons/fmod/libs/web/
+
+      - name: Download web template_release libraries
+        uses: actions/download-artifact@v4
+        with:
+          name: web-template_release
+          path: demo/addons/fmod/libs/web/
 
       - name: Create Release
         id: create_release
