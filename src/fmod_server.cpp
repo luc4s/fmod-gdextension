@@ -150,7 +150,9 @@ FmodServer::FmodServer() :
     singleton = this;
     callback_mutex.instantiate();
     performanceData = create_ref<FmodPerformanceData>();
+#if !defined(WEB_ENABLED)
     Callbacks::GodotFileRunner::get_singleton()->start();
+#endif
 }
 
 FmodServer::~FmodServer() {
@@ -214,11 +216,26 @@ void FmodServer::init(const Ref<FmodGeneralSettings>& p_settings) {
         }
     }
 
+#if defined(WEB_ENABLED)
+    if (ERROR_CHECK(
+          coreSystem->setFileSystem(
+            &Callbacks::godotFileOpen,
+            &Callbacks::godotFileClose,
+            &Callbacks::godotFileRead,
+            &Callbacks::godotFileSeek,
+            nullptr,
+            nullptr,
+            -1)
+        )) {
+        GODOT_LOG_VERBOSE("Custom File System enabled (sync, Web).")
+    }
+#else
     if (ERROR_CHECK(
           coreSystem->setFileSystem(&Callbacks::godotFileOpen, &Callbacks::godotFileClose, nullptr, nullptr, &Callbacks::godotSyncRead, &Callbacks::godotSyncCancel, -1)
         )) {
         GODOT_LOG_VERBOSE("Custom File System enabled.")
     }
+#endif
     cache = new FmodCache(system, coreSystem);
 }
 
@@ -552,7 +569,10 @@ void FmodServer::load_all_plugins(const Ref<FmodPluginsSettings>& p_settings) {
 }
 
 uint32_t FmodServer::load_plugin(const String& p_plugin_path, uint32_t p_priority) {
-#ifndef IOS_ENABLED
+#if defined(WEB_ENABLED)
+    // FMOD's HTML5 build has no dynamic library loading, plugins would have to be linked into the web template.
+    GODOT_LOG_WARNING(vformat("FMOD plugins are not supported on web, %s will not be loaded.", p_plugin_path))
+#elif !defined(IOS_ENABLED)
     return cache->add_plugin(p_plugin_path, p_priority);
 #endif
     return 0xFFFFFFFF;
@@ -785,6 +805,16 @@ void FmodServer::play_one_shot_using_event_description_attached_with_params(
 void FmodServer::set_system_dsp_buffer_size(const Ref<FmodDspSettings>& p_settings) {
     unsigned int buffer_length = p_settings->get_dsp_buffer_size();
     int num_buffers = p_settings->get_dsp_buffer_count();
+
+#if defined(WEB_ENABLED)
+    if (buffer_length < FmodDspSettings::DEFAULT_DSP_BUFFER_SIZE_WEB) {
+        GODOT_LOG_WARNING(vformat(
+          "FMOD Sound System: DSP buffer size %d is small for the web, where FMOD mixes on the main thread. Sizes below %d usually crackle, see the web documentation.",
+          buffer_length,
+          FmodDspSettings::DEFAULT_DSP_BUFFER_SIZE_WEB
+        ))
+    }
+#endif
 
     if (buffer_length > 0 && num_buffers > 0 && ERROR_CHECK(coreSystem->setDSPBufferSize(buffer_length, num_buffers))) {
         GODOT_LOG_VERBOSE("FMOD Sound System: Successfully set DSP buffer size")

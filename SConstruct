@@ -9,6 +9,12 @@ target_path = ARGUMENTS.pop("target_path", "demo/addons/fmod/libs/")
 target_name = ARGUMENTS.pop("target_name", "libGodotFmod")
 fmod_lib_dir = ARGUMENTS.pop("fmod_lib_dir", "../libs/fmod/")
 
+# Although FMOD's WebAssembly libraries are built with pthreads / shared memory support, Godot doesn't yet like it.
+# For web builds, default to single-threaded godot-cpp (unless the user explicitly overrides it).
+platform_arg = ARGUMENTS.get("platform")
+if platform_arg == "web" and "threads" not in ARGUMENTS:
+    ARGUMENTS["threads"] = "no"
+
 env = SConscript("godot-cpp/SConstruct")
 
 # Add those directory manually, so we can skip the godot_cpp directory when including headers in C++ files
@@ -127,6 +133,12 @@ elif env["platform"] == "android":
     env.Append(LIBPATH=[env['fmod_lib_dir'] + 'android/core/lib/' + arch_dir, env['fmod_lib_dir'] + 'android/studio/lib/' + arch_dir])
     env.Append(LIBS=[libfmod, libfmodstudio])
 
+elif env["platform"] == "web":
+    # FMOD is not linked here: its HTML5 build only works inside Emscripten's main module, while GDExtensions are
+    # side modules. FMOD gets linked into a custom web export template instead (see tools/web/), and this side module
+    # resolves FMOD symbols against it when Godot loads the extension.
+    env.Append(CPPPATH=[env['fmod_lib_dir'] + 'web/core/inc/', env['fmod_lib_dir'] + 'web/studio/inc/'])
+
 #Output is placed in the addons directory of the demo project directly
 target = "{}{}/{}.{}.{}".format(
     target_path, env["platform"], target_name, env["platform"], env["target"]
@@ -205,8 +217,9 @@ def copy_fmod_libraries(self, arg, env, executor = None):
     source_files = [env.Glob(os.path.join(source_dir, '*.*')) for source_dir in [fmod_core_lib_dir, fmod_studio_lib_dir]]
     [[shutil.copy(str(file), addon_fmod_libs_output) for file in files] for files in source_files]
 
-
-copy_fmod_libraries_action = Action('', copy_fmod_libraries)
-AddPostAction(library, copy_fmod_libraries_action)
+# web bundles everything inside the final .wasm - no need to export libs
+if env["platform"] != "web":
+    copy_fmod_libraries_action = Action('', copy_fmod_libraries)
+    AddPostAction(library, copy_fmod_libraries_action)
 
 Default(library)

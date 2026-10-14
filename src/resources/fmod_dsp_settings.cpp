@@ -22,14 +22,24 @@ int FmodDspSettings::get_dsp_buffer_count() const {
     return _dsp_buffer_count;
 }
 
+int FmodDspSettings::get_default_dsp_buffer_size() {
+#if defined(WEB_ENABLED)
+    return DEFAULT_DSP_BUFFER_SIZE_WEB;
+#else
+    return DEFAULT_DSP_BUFFER_SIZE;
+#endif
+}
+
 Ref<FmodDspSettings> FmodDspSettings::get_from_project_settings() {
     Ref<FmodDspSettings> settings;
     settings.instantiate();
 
     ProjectSettings* project_settings = ProjectSettings::get_singleton();
 
+    // The editor registers the setting with the desktop default, a project that keeps it unset gets the
+    // platform default here. Use a feature override (dsp_buffer_size.web) to choose per platform.
     String dsp_buffer_size_setting_path = vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, DSP_SETTINGS_BASE_PATH, DSP_BUFFER_SIZE_OPTION);
-    settings->set_dsp_buffer_size(project_settings->get_setting(dsp_buffer_size_setting_path, DEFAULT_DSP_BUFFER_SIZE));
+    settings->set_dsp_buffer_size(project_settings->get_setting(dsp_buffer_size_setting_path, get_default_dsp_buffer_size()));
 
     String dsp_buffer_count_setting_path = vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, DSP_SETTINGS_BASE_PATH, DSP_BUFFER_COUNT_OPTION);
     settings->set_dsp_buffer_count(project_settings->get_setting(dsp_buffer_count_setting_path, DEFAULT_DSP_BUFFER_COUNT));

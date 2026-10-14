@@ -1,0 +1,109 @@
+name: 🌐 Web build
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - SConstruct
+      - get_fmod.py
+      - src/**
+      - tools/web/**
+      - demo/addons/fmod/fmod.gdextension
+      - demo/export_presets.cfg
+      - demo/test/web/**
+      - .github/actions/create-native-build/**
+      - .github/workflows/web.yml
+
+# Global Settings
+env:
+  GODOT_VERSION: 4.5
+  # Must match the emscripten version used by Godot's own web CI for GODOT_VERSION (.github/workflows/web_builds.yml).
+  EM_VERSION: 4.0.11
+  TARGET_PATH: demo/addons/fmod/libs/
+  TARGET_NAME: libGodotFmod
+  FMOD_VERSION: 20306
+jobs:
+  build:
+    name: Web ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: template_debug
+            export-flag: --export-debug
+          - target: template_release
+            export-flag: --export-release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          submodules: recursive
+
+      - name: Install Emscripten SDK
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EM_VERSION }}
+          actions-cache-folder: emsdk-cache-${{ matrix.target }}
+
+      - name: Compile native plugin
+        uses: ./.github/actions/create-native-build
+        with:
+          platform: web
+          target: ${{ matrix.target }}
+          fmod-executable-suffix: html5.zip
+          fmod-user: ${{ secrets.FMOD_USER }}
+          fmod-password: ${{ secrets.FMOD_PWD }}
+          shell: bash
+
+      - name: List FMOD HTML5 libraries
+        run: find ../libs/fmod/web -name "*.a" -o -name "*.js" -o -name "*.wasm" | sort
+
+      # The template only depends on these inputs, rebuilding it takes ~20 minutes.
+      - name: Restore Godot web export template from cache
+        id: template-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/godot/bin/*.zip
+          key: godot-web-fmod-${{ matrix.target }}-godot${{ env.GODOT_VERSION }}-em${{ env.EM_VERSION }}-fmod${{ env.FMOD_VERSION }}-${{ hashFiles('tools/web/build_web_template.sh', 'tools/web/patch_godot_web_scsub.py') }}
+
+      - name: Build Godot web export template with FMOD
+        if: steps.template-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch ${{ env.GODOT_VERSION }}-stable https://github.com/godotengine/godot ${{ runner.temp }}/godot
+          tools/web/build_web_template.sh ${{ runner.temp }}/godot ../libs/fmod/web ${{ matrix.target }} -j$(nproc)
+
+      # The template embeds FMOD binaries: keep it short-lived, check the FMOD license before distributing it.
+      - name: Upload web export template
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-web-fmod-${{ matrix.target }}
+          path: ${{ runner.temp }}/godot/bin/*.zip
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Export demo for web
+        run: |
+          wget -q https://github.com/godotengine/godot-builds/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+          unzip -q Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip -d ${{ runner.temp }}/godot-editor
+          GODOT_EDITOR=${{ runner.temp }}/godot-editor/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64
+          TEMPLATE=$(ls ${{ runner.temp }}/godot/bin/godot.web.${{ matrix.target }}.wasm32*.dlink.zip)
+          python tools/web/ci_prepare_demo.py demo "$TEMPLATE" ${{ matrix.target }}
+          mkdir -p build/web
+          # The editor has no Linux build of the extension here, so errors about it during import are expected.
+          $GODOT_EDITOR --headless --path demo --import || true
+          $GODOT_EDITOR --headless --path demo ${{ matrix.export-flag }} "Web" "$PWD/build/web/index.html"
+          ls -la build/web
+
+      # Drives the runner's Google Chrome over the DevTools protocol, see tools/web/smoke_test.mjs.
+      - name: Run smoke test in headless Chrome
+        run: node tools/web/smoke_test.mjs build/web 120
+
+      - name: Upload exported demo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-web-export-${{ matrix.target }}
+          path: build/web
+          retention-days: 7
+          if-no-files-found: ignore

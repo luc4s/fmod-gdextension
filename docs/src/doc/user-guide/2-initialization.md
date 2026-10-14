@@ -36,7 +36,7 @@ Range: [0, [FMOD_MAX_CHANNEL_WIDTH](https://www.fmod.com/docs/2.03/api/core-api-
 ## Dsp
 
 - "Dsp Buffer Size": The mixer engine block size. Use this to adjust mixer update granularity. Units: Samples Default:
-1024
+512, or 2048 on the web when left unset (see [Web export](../advanced/2-web.md))
 - "Dsp Buffer Count": The mixer engine number of buffers used. Use this to adjust mixer latency. Default: 4
 
 ![dsp-tab]

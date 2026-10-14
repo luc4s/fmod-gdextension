@@ -173,7 +173,7 @@ jobs:
         if: ${{ matrix.platform == 'android' }}
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r23c
+          ndk-version: r28c
           link-to-sdk: true
 
       - name: Compile native plugin
@@ -184,8 +184,8 @@ jobs:
           additional-python-packages: ${{ matrix.additional-python-packages }}
           flags: ${{ matrix.flags }}
           fmod-executable-suffix: ${{ matrix.fmod-executable-suffix }}
-          fmod-user: ${{ secrets.FMODUSER }}
-          fmod-password: ${{ secrets.FMODPASS }}
+          fmod-user: ${{ secrets.FMODUSER || secrets.FMOD_USER }}
+          fmod-password: ${{ secrets.FMODPASS || secrets.FMOD_PWD }}
           shell: ${{ matrix.shell }}
 
       - name: Download godot engine
