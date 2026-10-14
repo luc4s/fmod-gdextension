@@ -52,8 +52,8 @@ jobs:
           platform: web
           target: ${{ matrix.target }}
           fmod-executable-suffix: html5.zip
-          fmod-user: ${{ secrets.FMOD_USER }}
-          fmod-password: ${{ secrets.FMOD_PWD }}
+          fmod-user: ${{ secrets.FMODUSER || secrets.FMOD_USER }}
+          fmod-password: ${{ secrets.FMODPASS || secrets.FMOD_PWD }}
           shell: bash
 
       - name: List FMOD HTML5 libraries
