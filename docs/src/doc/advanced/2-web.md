@@ -33,6 +33,12 @@ scons platform=web target=<template_debug|template_release>
 
 `threads` defaults to `no` on web. Threaded web builds are not supported.
 
+## Getting the export template
+
+Each release attaches the templates built by CI for its Godot version: `godot-web-fmod-template_debug.zip` and
+`godot-web-fmod-template_release.zip`, next to `addons.zip`. Use them unless you need another Godot version or a
+different FMOD build, in which case build them as described below.
+
 ## Building the export template
 
 ```
@@ -57,7 +63,7 @@ node tools/web/smoke_test.mjs <export dir> [timeout seconds]
 Set `CHROMIUM_PATH` to pick the browser, and `HEADED=1` to watch it run (and hear it).
 
 !!! note
-    The templates contain FMOD binaries. Check the FMOD license before redistributing them.
+    The templates embed FMOD, like the FMOD libraries shipped in `addons.zip`. FMOD's license applies to your use of them.
 
 ## Exporting your project
 

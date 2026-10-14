@@ -29,8 +29,10 @@ Make sure the `Use Gradle Build` option is activated in your Android export:
 
 ## 4 - Web specific
 
-Web exports need a custom export template with FMOD linked in, which the release does not ship.
-See the [web export guide](../advanced/2-web.md) for how to build it and configure the export preset.
+Web exports need a custom export template with FMOD linked in. Each release attaches the templates for its Godot
+version (`godot-web-fmod-template_debug.zip` and `godot-web-fmod-template_release.zip`).
+See the [web export guide](../advanced/2-web.md) for how to configure the export preset, or to build the templates
+for another Godot version.
 
 [android-extension-export-enable]: ./assets/android-export-enable-extension.png
 [install-android-build-template]: ./assets/install-android-build-template.png
