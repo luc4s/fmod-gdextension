@@ -4,6 +4,10 @@ on:
     tags:
       - '\d+.\d+.\d+-\d+.\d+.\d+'
 
+# The release is created with GITHUB_TOKEN, which is read-only by default.
+permissions:
+  contents: write
+
 # Global Settings
 env:
   GODOT_VERSION: 4.5
