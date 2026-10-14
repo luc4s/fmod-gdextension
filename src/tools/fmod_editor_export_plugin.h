@@ -3,6 +3,7 @@
 #ifndef GODOTFMOD_FMOD_EDITOR_EXPORT_PLUGIN_H
 #define GODOTFMOD_FMOD_EDITOR_EXPORT_PLUGIN_H
 
+#include <classes/ref.hpp>
 #include <resources/fmod_plugins_settings.h>
 #include <godot_cpp/classes/editor_export_platform.hpp>
 #include <classes/editor_export_plugin.hpp>

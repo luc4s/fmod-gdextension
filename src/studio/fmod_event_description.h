@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_EVENT_DESCRIPTION_H
 #define GODOTFMOD_FMOD_EVENT_DESCRIPTION_H
 
+#include <classes/ref.hpp>
 #include "classes/ref_counted.hpp"
 #include "fmod_parameter_description.h"
 #include "fmod_studio.hpp"

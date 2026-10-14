@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_BANK_H
 #define GODOTFMOD_FMOD_BANK_H
 
+#include <classes/ref.hpp>
 #include "classes/ref_counted.hpp"
 #include "fmod_bus.h"
 #include "fmod_event_description.h"

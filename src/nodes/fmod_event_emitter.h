@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_EVENT_EMITTER_H
 #define GODOTFMOD_FMOD_EVENT_EMITTER_H
 
+#include <classes/ref.hpp>
 #include "classes/object.hpp"
 
 #include <constants.h>

@@ -21,8 +21,8 @@ So this plugin splits the work:
 
 - The FMOD Engine HTML5 package, from the FMOD website. Put its `api` folder under `libs/fmod/web`, next to the other platforms.
 - [Emscripten](https://emscripten.org/docs/getting_started/downloads.html), at the version Godot uses for your
-  Godot release. For 4.5, that's `4.0.11` (see `EM_VERSION` in Godot's `.github/workflows/web_builds.yml`).
-- The Godot source code at the tag matching your editor version, for example `4.5-stable`, with
+  Godot release. For 4.7.2, that's `4.0.11` (see `EM_VERSION` in Godot's `.github/workflows/web_builds.yml`).
+- The Godot source code at the tag matching your editor version, for example `4.7.2-stable`, with
   [its build requirements](https://docs.godotengine.org/en/stable/contributing/development/compiling/compiling_for_web.html).
 
 ## Building the extension

@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_SERVER_H
 #define GODOTFMOD_FMOD_SERVER_H
 
+#include <classes/ref.hpp>
 #include "core/fmod_file.h"
 #include "core/fmod_sound.h"
 #include "data/performance_data.h"
@@ -107,7 +108,8 @@ namespace godot {
         // call_deferred is not implemented in godot-cpp.
         // Would have prefered a SpinLock but does not seems to exist in godot-cpp.
         // TODO: Change when https://github.com/godotengine/godot-cpp/pull/1091 is merged.
-        Ref<Mutex> callback_mutex;
+        // godot-cpp 10 puts the script-level Mutex in CoreBind, godot::Mutex is its native one.
+        Ref<CoreBind::Mutex> callback_mutex;
         List<Callback> callbacks_to_process;
 
 

@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_COMMON_H
 #define GODOTFMOD_COMMON_H
 
+#include <classes/ref.hpp>
 #include "classes/canvas_item.hpp"
 #include "classes/node3d.hpp"
 #include "fmod_common.h"

@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FILES_H
 #define GODOTFMOD_FILES_H
 
+#include <classes/ref.hpp>
 #include <classes/dir_access.hpp>
 #include <variant/packed_string_array.hpp>
 

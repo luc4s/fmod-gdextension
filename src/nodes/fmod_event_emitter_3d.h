@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_EVENT_EMITTER_3D_H
 #define GODOTFMOD_FMOD_EVENT_EMITTER_3D_H
 
+#include <classes/ref.hpp>
 #include "classes/node.hpp"
 #include "classes/node3d.hpp"
 #include "fmod_event_emitter.h"

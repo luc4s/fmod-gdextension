@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_LOGGING_SETTINGS_H
 #define GODOTFMOD_FMOD_LOGGING_SETTINGS_H
 
+#include <classes/ref.hpp>
 #include "fmod_studio.h"
 
 #include <classes/resource.hpp>
