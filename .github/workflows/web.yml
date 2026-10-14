@@ -15,8 +15,8 @@ on:
 
 # Global Settings
 env:
-  GODOT_VERSION: 4.5
-  # Must match the emscripten version used by Godot's own web CI for GODOT_VERSION (.github/workflows/web_builds.yml).
+  GODOT_VERSION: 4.7.2
+  # Must match the emscripten version used by Godot's own web CI for GODOT_VERSION (.github/workflows/web_builds.yml), 4.0.11 for 4.7.2.
   EM_VERSION: 4.0.11
   TARGET_PATH: demo/addons/fmod/libs/
   TARGET_NAME: libGodotFmod

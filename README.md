@@ -27,7 +27,7 @@ web export template, which the release cannot ship because it would redistribute
 See [the web export guide](docs/src/doc/advanced/2-web.md) for the details, in short:
 
 1. Get the FMOD Engine HTML5 package from [fmod.com](https://www.fmod.com/download) and the Godot source at the tag
-   matching your editor (`4.5-stable`), plus Emscripten at the version that Godot release uses (`4.0.11` for 4.5).
+   matching your editor (`4.7.2-stable`), plus Emscripten at the version that Godot release uses (`4.0.11` for 4.7.2).
 2. Build the templates, each one ends up as a zip in Godot's `bin/` folder:
    ```
    tools/web/build_web_template.sh <godot source dir> <fmod html5 package>/api template_debug
@@ -81,7 +81,7 @@ work to GDNative.
 
 # Tested Versions
 
-- **Godot Version:** 4.5 stable
+- **Godot Version:** 4.7.2 stable
 - **FMOD Version:** 2.03.06
 - **Web:** Chrome 152 and Firefox 136 on Linux
 

@@ -15,7 +15,8 @@ platform_arg = ARGUMENTS.get("platform")
 if platform_arg == "web" and "threads" not in ARGUMENTS:
     ARGUMENTS["threads"] = "no"
 
-env = SConscript("godot-cpp/SConstruct")
+# godot-cpp 10 is versioned independently from Godot, target the API of the Godot release this extension supports.
+env = SConscript("godot-cpp/SConstruct", {"api_version": "4.7"})
 
 # Add those directory manually, so we can skip the godot_cpp directory when including headers in C++ files
 source_path = [

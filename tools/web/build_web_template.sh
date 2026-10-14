@@ -4,7 +4,7 @@
 # so exporting a project using fmod-gdextension to web requires such a custom template.
 #
 # Usage: build_web_template.sh <godot source dir> <fmod web api dir> <template_debug|template_release> [extra scons args]
-#   <godot source dir>   Godot checkout matching the editor version used for export (e.g. tag 4.5-stable).
+#   <godot source dir>   Godot checkout matching the editor version used for export (e.g. tag 4.7.2-stable).
 #   <fmod web api dir>   The "api" folder of the FMOD Engine HTML5 package (contains core/ and studio/).
 # Requires emscripten (emcc, emnm) on PATH, same version as the one Godot's own CI uses for that release.
 set -euo pipefail

@@ -10,7 +10,7 @@ permissions:
 
 # Global Settings
 env:
-  GODOT_VERSION: 4.5
+  GODOT_VERSION: 4.7.2
   NDK_VERSION: 28.2.13676358
   TARGET_PATH: demo/addons/fmod/libs/
   TARGET_NAME: libGodotFmod
