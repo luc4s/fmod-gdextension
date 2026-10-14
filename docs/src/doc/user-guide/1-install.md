@@ -4,7 +4,7 @@
 
 We provide releases in github repository. 
 
-You can download `addon.zip` from this [page](https://github.com/utopia-rise/fmod-gdextension/releases), then unzip it 
+You can download `addon.zip` from this [page](https://github.com/luc4s/fmod-gdextension/releases), then unzip it 
 and copy its content to the `addons` directory of your Godot project.
 
 ## 2 - Activate the plugin in Godot
@@ -26,6 +26,11 @@ Make sure the `Use Gradle Build` option is activated in your Android export:
 !!! warning
     We curently only support armv8 architecture for android export.  
     In order to get support for x86, you should build plugin on your own. 
+
+## 4 - Web specific
+
+Web exports need a custom export template with FMOD linked in, which the release does not ship.
+See the [web export guide](../advanced/2-web.md) for how to build it and configure the export preset.
 
 [android-extension-export-enable]: ./assets/android-export-enable-extension.png
 [install-android-build-template]: ./assets/install-android-build-template.png
