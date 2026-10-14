@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_BANK_LOADER_H
 #define GODOTFMOD_FMOD_BANK_LOADER_H
 
+#include <classes/ref.hpp>
 #include "classes/node.hpp"
 #include "studio/fmod_bank.h"
 

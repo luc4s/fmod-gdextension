@@ -2,6 +2,7 @@
 #define GODOTFMOD_FMOD_PLUGINS_SETTINGS_H
 
 
+#include <classes/ref.hpp>
 #include <classes/resource.hpp>
 
 namespace godot {

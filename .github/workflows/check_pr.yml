@@ -66,6 +66,7 @@ jobs:
             os: "ubuntu-22.04"
             platform: linux
             target: editor
+            flags: -k  # TEMPORARY (godot-4.7 branch): keep going to list every compile error
             fmod-executable-suffix: linux.tar.gz
             fmod-core-platform-folder: linux/core/lib/x86_64
             fmod-studio-platform-folder: linux/studio/lib/x86_64

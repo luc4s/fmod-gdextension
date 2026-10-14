@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_CACHE_H
 #define GODOTFMOD_FMOD_CACHE_H
 
+#include <classes/ref.hpp>
 #include "core/fmod_file.h"
 #include "fmod_studio.hpp"
 #include "studio/fmod_bank.h"

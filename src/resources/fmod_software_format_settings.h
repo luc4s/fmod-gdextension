@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_SOFTWARE_FORMAT_SETTINGS_H
 #define GODOTFMOD_FMOD_SOFTWARE_FORMAT_SETTINGS_H
 
+#include <classes/ref.hpp>
 #include "fmod_common.h"
 
 #include <classes/resource.hpp>

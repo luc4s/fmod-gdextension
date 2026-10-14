@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_SERVER_H
 #define GODOTFMOD_FMOD_SERVER_H
 
+#include <classes/ref.hpp>
 #include "core/fmod_file.h"
 #include "core/fmod_sound.h"
 #include "data/performance_data.h"

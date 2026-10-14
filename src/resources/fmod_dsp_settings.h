@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_FMOD_DSP_SETTINGS_H
 #define GODOTFMOD_FMOD_DSP_SETTINGS_H
 
+#include <classes/ref.hpp>
 #include <classes/resource.hpp>
 
 namespace godot {

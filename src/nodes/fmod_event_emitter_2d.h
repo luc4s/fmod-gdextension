@@ -1,6 +1,7 @@
 #ifndef FMOD_EVENT_EMITTER_2D_GODOT_FMOD_H
 #define FMOD_EVENT_EMITTER_2D_GODOT_FMOD_H
 
+#include <classes/ref.hpp>
 #include "fmod_event_emitter.h"
 #include "studio/fmod_event.h"
 

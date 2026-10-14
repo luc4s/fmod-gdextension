@@ -1,6 +1,7 @@
 #ifndef GODOTFMOD_PLUGINS_HELPER_H
 #define GODOTFMOD_PLUGINS_HELPER_H
 
+#include <classes/ref.hpp>
 #include <variant/string.hpp>
 #include <resources/fmod_plugins_settings.h>
 #include <classes/os.hpp>
