@@ -22,20 +22,17 @@ If you need any help, you can join our [Discord Server](https://discord.com/invi
 
 ## Web (HTML5) export
 
-Web support is experimental. The extension itself is in `addons.zip`, but FMOD has to be linked into a custom Godot
-web export template, which the release cannot ship because it would redistribute FMOD's binaries.
+Web support is experimental. The extension itself is in `addons.zip`; FMOD is linked into a custom Godot web export
+template, and each release attaches the two templates for its Godot version
+(`godot-web-fmod-template_debug.zip` and `godot-web-fmod-template_release.zip`).
 See [the web export guide](docs/src/doc/advanced/2-web.md) for the details, in short:
 
-1. Get the FMOD Engine HTML5 package from [fmod.com](https://www.fmod.com/download) and the Godot source at the tag
-   matching your editor (`4.5-stable`), plus Emscripten at the version that Godot release uses (`4.0.11` for 4.5).
-2. Build the templates, each one ends up as a zip in Godot's `bin/` folder:
-   ```
-   tools/web/build_web_template.sh <godot source dir> <fmod html5 package>/api template_debug
-   tools/web/build_web_template.sh <godot source dir> <fmod html5 package>/api template_release
-   ```
-3. In your project's Web export preset, enable **Extensions Support**, disable **Thread Support**, and set
+1. Download both template zips from the release matching your Godot version.
+2. In your project's Web export preset, enable **Extensions Support**, disable **Thread Support**, and set
    **Custom Template > Debug / Release** to those zips.
-4. Export as usual, and serve the result over HTTP. No cross-origin isolation headers are needed.
+3. Export as usual, and serve the result over HTTP. No cross-origin isolation headers are needed.
+
+For another Godot version, build the templates yourself with `tools/web/build_web_template.sh`, see the guide.
 
 Sound starts after the first click or tap on the page, which FMOD requires on the web. The extension uses a larger
 mixer buffer on the web (2048 samples) to avoid crackling, see the guide if you need to tune it.

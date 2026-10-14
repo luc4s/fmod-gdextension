@@ -165,8 +165,8 @@ jobs:
           fmod-password: ${{ secrets.FMODPASS || secrets.FMOD_PWD }}
           shell: ${{ matrix.shell }}
 
-  # The web library is a side module without FMOD inside (FMOD lives in a custom export template, see
-  # docs/src/doc/advanced/2-web.md), so it can be shipped with the addon.
+  # The web library is a side module, FMOD lives in a custom export template (see docs/src/doc/advanced/2-web.md).
+  # Both are built here: the library goes into addons.zip, the templates are attached to the release.
   build-web:
     name: Web ${{ matrix.target }}
     runs-on: ubuntu-24.04
@@ -196,6 +196,28 @@ jobs:
           fmod-user: ${{ secrets.FMODUSER || secrets.FMOD_USER }}
           fmod-password: ${{ secrets.FMODPASS || secrets.FMOD_PWD }}
           shell: bash
+
+      # Same cache as the web workflow: the template only depends on these inputs, rebuilding takes ~20 minutes.
+      - name: Restore Godot web export template from cache
+        id: template-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/godot/bin/*.zip
+          key: godot-web-fmod-${{ matrix.target }}-godot${{ env.GODOT_VERSION }}-em${{ env.EM_VERSION }}-fmod${{ env.FMOD_VERSION }}-${{ hashFiles('tools/web/build_web_template.sh', 'tools/web/patch_godot_web_scsub.py') }}
+
+      - name: Build Godot web export template with FMOD
+        if: steps.template-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch ${{ env.GODOT_VERSION }}-stable https://github.com/godotengine/godot ${{ runner.temp }}/godot
+          tools/web/build_web_template.sh ${{ runner.temp }}/godot ../libs/fmod/web ${{ matrix.target }} -j$(nproc)
+
+      - name: Upload web export template
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-web-fmod-${{ matrix.target }}
+          path: ${{ runner.temp }}/godot/bin/*.zip
+          retention-days: 7
+          if-no-files-found: error
 
   package-godot-addon:
     needs: [build, build-web]
@@ -312,6 +334,20 @@ jobs:
           name: web-template_release
           path: demo/addons/fmod/libs/web/
 
+      - name: Download web export templates
+        uses: actions/download-artifact@v4
+        with:
+          pattern: godot-web-fmod-template_*
+          path: web-templates/
+
+      # One zip per target, named after the target rather than Godot's build suffix.
+      - name: Name web export templates
+        run: |
+          for target in template_debug template_release; do
+            mv web-templates/godot-web-fmod-$target/*.zip web-templates/godot-web-fmod-$target.zip
+          done
+          ls -la web-templates
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -358,4 +394,24 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./demo/demo.zip
           asset_name: demo.zip
+          asset_content_type: application/zip
+
+      - name: Upload web export template (debug) asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./web-templates/godot-web-fmod-template_debug.zip
+          asset_name: godot-web-fmod-template_debug.zip
+          asset_content_type: application/zip
+
+      - name: Upload web export template (release) asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./web-templates/godot-web-fmod-template_release.zip
+          asset_name: godot-web-fmod-template_release.zip
           asset_content_type: application/zip
