@@ -98,6 +98,17 @@ void FmodEditorPlugin::_ready() {
     );
 
     add_setting(
+      vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUED_OUTPUT),
+      DEFAULT_WEB_QUEUED_OUTPUT,
+      Variant::Type::BOOL
+    );
+    add_setting(
+      vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MS),
+      DEFAULT_WEB_QUEUE_MS,
+      Variant::Type::INT
+    );
+
+    add_setting(
       vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FmodSound3DSettings::THREE_D_SETTINGS_BASE_PATH, FmodSound3DSettings::DOPPLER_SCALE_OPTION),
       FmodSound3DSettings::DEFAULT_DOPPLER_SCALE,
       Variant::Type::FLOAT

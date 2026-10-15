@@ -230,6 +230,7 @@ namespace {
 
     // Called by FMOD when it wants the output to mix (from System::update with FMOD_INIT_MIX_FROM_UPDATE).
     FMOD_RESULT F_CALL cb_mixer(FMOD_OUTPUT_STATE* p_state) {
+        if (g_state.mixer_calls == 0) { GODOT_LOG_VERBOSE("FMOD web output: FMOD drives the mixer callback from System::update") }
         g_state.mixer_calls++;
         FmodWebOutput::fill();
         return FMOD_OK;

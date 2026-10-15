@@ -209,8 +209,14 @@ void FmodServer::init(const Ref<FmodGeneralSettings>& p_settings) {
     // Fmod/Web/queued_output (default true) switches it, Fmod/Web/queue_ms (default 200) is the queue depth.
     {
         ProjectSettings* project_settings = ProjectSettings::get_singleton();
-        bool queued_output = project_settings->get_setting("Fmod/Web/queued_output", true);
-        int queue_ms = project_settings->get_setting("Fmod/Web/queue_ms", 200);
+        bool queued_output = project_settings->get_setting(
+          vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUED_OUTPUT),
+          DEFAULT_WEB_QUEUED_OUTPUT
+        );
+        int queue_ms = project_settings->get_setting(
+          vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MS),
+          DEFAULT_WEB_QUEUE_MS
+        );
         if (queued_output && FmodWebOutput::install(coreSystem, queue_ms)) {
             // Without threads the mixer has to run from System::update, where the output tops the queue up.
             init_flags |= FMOD_INIT_MIX_FROM_UPDATE;
@@ -826,7 +832,12 @@ void FmodServer::set_system_dsp_buffer_size(const Ref<FmodDspSettings>& p_settin
     int num_buffers = p_settings->get_dsp_buffer_count();
 
 #if defined(WEB_ENABLED)
-    if (buffer_length < FmodDspSettings::DEFAULT_DSP_BUFFER_SIZE_WEB) {
+    // With the queued output the block size only sets the mixing granularity, small blocks are fine.
+    bool queued_output = ProjectSettings::get_singleton()->get_setting(
+      vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUED_OUTPUT),
+      DEFAULT_WEB_QUEUED_OUTPUT
+    );
+    if (!queued_output && buffer_length < FmodDspSettings::DEFAULT_DSP_BUFFER_SIZE_WEB) {
         GODOT_LOG_WARNING(vformat(
           "FMOD Sound System: DSP buffer size %d is small for the web, where FMOD mixes on the main thread. Sizes below %d usually crackle, see the web documentation.",
           buffer_length,
