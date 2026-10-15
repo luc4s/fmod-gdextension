@@ -423,9 +423,23 @@ void FmodWebOutput::fill(const char* p_driver) {
         );
         g_state.blocks_pushed++;
     }
-    if (g_state.first_driver == nullptr && g_state.blocks_pushed > before) {
-        g_state.first_driver = p_driver;
-        GODOT_LOG_INFO(vformat("FMOD web output: mixing driven by %s", p_driver))
+    if (g_state.blocks_pushed > before) {
+        if (g_state.first_driver == nullptr) {
+            g_state.first_driver = p_driver;
+            GODOT_LOG_INFO(vformat("FMOD web output: mixing driven by %s", p_driver))
+        }
+        // Per-caller block counts, read by the smoke test.
+        EM_ASM(
+          {
+              const state = Module.godotFmodOutput;
+              if (!state) return;
+              const driver = UTF8ToString($0);
+              state.blocksByDriver = state.blocksByDriver || {};
+              state.blocksByDriver[driver] = (state.blocksByDriver[driver] || 0) + $1;
+          },
+          p_driver,
+          static_cast<int>(g_state.blocks_pushed - before)
+        );
     }
     g_state.filling = false;
 }

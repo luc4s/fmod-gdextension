@@ -222,7 +222,7 @@ try {
   audioStats = JSON.parse(evaluated.value);
   console.log(`AudioWorklet: ${JSON.stringify(audioStats)}`);
   const { result: queue } = await page("Runtime.evaluate", {
-    expression: "(() => { const s = window.__godotFmodOutput; return s ? JSON.stringify({ minMs: s.minMs, maxMs: s.maxMs, targetMs: s.targetMs, bumps: s.bumps, dryEvents: s.dryEvents, lowestQueuedMs: s.lowestQueuedMs, underrunFrames: s.underrunFrames }) : null; })()",
+    expression: "(() => { const s = window.__godotFmodOutput; return s ? JSON.stringify({ minMs: s.minMs, maxMs: s.maxMs, targetMs: s.targetMs, bumps: s.bumps, dryEvents: s.dryEvents, lowestQueuedMs: s.lowestQueuedMs, underrunFrames: s.underrunFrames, blocksByDriver: s.blocksByDriver || {} }) : null; })()",
     returnByValue: true,
   });
   if (queue.value) queueStats = JSON.parse(queue.value);
@@ -253,6 +253,7 @@ if (queuedNode && queuedNode.pushed) {
   if (queueStats) {
     console.log(`FMOD queued output: adaptive queue ${queueStats.minMs}-${queueStats.maxMs} ms, now ${queueStats.targetMs.toFixed(0)} ms `
       + `after ${queueStats.bumps} increases (${queueStats.dryEvents} dry), lowest observed depth ${queueStats.lowestQueuedMs.toFixed(0)} ms`);
+    console.log(`FMOD queued output: blocks by caller ${Object.entries(queueStats.blocksByDriver).map(([k, v]) => `${k}: ${v}`).join(", ") || "none"}`);
   }
 }
 const fmodNode = audioStats?.nodes.find((node) => node.name === "audio-processor");
