@@ -24,7 +24,11 @@ int FmodDspSettings::get_dsp_buffer_count() const {
 
 int FmodDspSettings::get_default_dsp_buffer_size() {
 #if defined(WEB_ENABLED)
-    return DEFAULT_DSP_BUFFER_SIZE_WEB;
+    bool queued_output = ProjectSettings::get_singleton()->get_setting(
+      vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUED_OUTPUT),
+      DEFAULT_WEB_QUEUED_OUTPUT
+    );
+    return queued_output ? DEFAULT_DSP_BUFFER_SIZE_WEB_QUEUED : DEFAULT_DSP_BUFFER_SIZE_WEB;
 #else
     return DEFAULT_DSP_BUFFER_SIZE;
 #endif

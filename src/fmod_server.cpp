@@ -4,6 +4,7 @@
 #include "core/fmod_sound.h"
 #include "data/performance_data.h"
 #include "fmod_logging.h"
+#include "fmod_web_output.h"
 #include "helpers/common.h"
 #include "helpers/maths.h"
 #include "plugins/ios_plugins_loader.h"
@@ -13,6 +14,7 @@
 
 #include <classes/node3d.hpp>
 #include <classes/project_settings.hpp>
+#include <constants.h>
 
 using namespace godot;
 
@@ -203,6 +205,30 @@ void FmodServer::init(const Ref<FmodGeneralSettings>& p_settings) {
 
     FMOD_INITFLAGS init_flags = FMOD_INIT_3D_RIGHTHANDED;
 
+#if defined(WEB_ENABLED)
+    // Prototype: mix ahead into a queue read by our own AudioWorklet instead of FMOD's double-buffered output.
+    // Fmod/Web/queued_output (default true) switches it, Fmod/Web/queue_min_ms and queue_max_ms bound the depth.
+    {
+        ProjectSettings* project_settings = ProjectSettings::get_singleton();
+        bool queued_output = project_settings->get_setting(
+          vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUED_OUTPUT),
+          DEFAULT_WEB_QUEUED_OUTPUT
+        );
+        int queue_min_ms = project_settings->get_setting(
+          vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MIN_MS),
+          DEFAULT_WEB_QUEUE_MIN_MS
+        );
+        int queue_max_ms = project_settings->get_setting(
+          vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MAX_MS),
+          DEFAULT_WEB_QUEUE_MAX_MS
+        );
+        if (queued_output && FmodWebOutput::install(coreSystem, queue_min_ms, queue_max_ms)) {
+            // Without threads the mixer runs from System::update, through the output's update callback.
+            init_flags |= FMOD_INIT_MIX_FROM_UPDATE;
+        }
+    }
+#endif
+
     if (ERROR_CHECK(system->initialize(p_settings->get_channel_count(), studio_init_flags, init_flags, nullptr))) {
         isInitialized = true;
         GODOT_LOG_INFO("FMOD Sound System: Successfully initialized")
@@ -290,6 +316,11 @@ void FmodServer::update() {
 #endif
 
     ERROR_CHECK(system->update());
+
+#if defined(WEB_ENABLED)
+    // Safety net: the output's update callback inside System::update normally already filled the queue.
+    FmodWebOutput::fill("FmodServer.update");
+#endif
 }
 
 void FmodServer::_set_listener_attributes() {
@@ -807,7 +838,12 @@ void FmodServer::set_system_dsp_buffer_size(const Ref<FmodDspSettings>& p_settin
     int num_buffers = p_settings->get_dsp_buffer_count();
 
 #if defined(WEB_ENABLED)
-    if (buffer_length < FmodDspSettings::DEFAULT_DSP_BUFFER_SIZE_WEB) {
+    // With the queued output the block size only sets the mixing granularity, small blocks are fine.
+    bool queued_output = ProjectSettings::get_singleton()->get_setting(
+      vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUED_OUTPUT),
+      DEFAULT_WEB_QUEUED_OUTPUT
+    );
+    if (!queued_output && buffer_length < FmodDspSettings::DEFAULT_DSP_BUFFER_SIZE_WEB) {
         GODOT_LOG_WARNING(vformat(
           "FMOD Sound System: DSP buffer size %d is small for the web, where FMOD mixes on the main thread. Sizes below %d usually crackle, see the web documentation.",
           buffer_length,

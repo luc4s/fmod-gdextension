@@ -75,45 +75,42 @@ In the Web export preset:
 
 Banks are exported like on other platforms, and they are read through Godot's file system.
 
-## Mixer buffer size and crackling
+## How audio reaches the browser
 
-Without threads, FMOD mixes on the main thread: its AudioWorklet asks the page for one DSP buffer at a time,
-and the page mixes it in between Godot frames. The worklet holds two buffers. If the next one is not ready when
-the current one ends, it plays the previous buffer again, which is heard as crackling.
+Without threads, FMOD mixes on the main thread, between Godot frames, and the sound is played by an AudioWorklet,
+which runs in the browser's audio thread. The extension ships its own output for that (prototype, on by default):
 
-With the extension's desktop default of 512 samples (11.6 ms at 44.1 kHz) a single slow frame is enough for
-that, and it happens many times per second in Chrome and Firefox. The extension therefore defaults
-**Dsp Buffer Size** (`Fmod/DSP/dsp_buffer_size`) to **2048** on the web when the project does not set it,
-and logs a warning on the web for smaller values. Measured on the demo:
+- A 4 ms timer, running between Godot frames, and FMOD's update callback both ask the worklet how much audio is
+  still queued and mix as many DSP blocks as needed to keep the queue at its target depth. A frame that takes
+  longer than one block does not matter any more; only a freeze longer than the queue makes the worklet run dry,
+  in which case it plays silence until the mixer catches up.
+- The target depth adapts, like a jitter buffer: it starts at **Web > Queue Min Ms** (`Fmod/Web/queue_min_ms`,
+  default 30), grows by half each time the worklet ran dry or nearly did, up to **Web > Queue Max Ms**
+  (`Fmod/Web/queue_max_ms`, default 300), and shrinks back slowly after fifteen seconds without trouble. On a
+  machine with regular frames the latency stays near the minimum; on one that hitches it rises just enough.
+- The queue depth is the audio latency, plus one DSP block and the browser's own output latency. With this output
+  the DSP block size defaults to 256 on the web (6 ms at 44.1 kHz), so the extension's part of the latency is
+  about 40 ms at the minimum, comparable to FMOD's desktop default of 512 x 4 samples. A larger `Dsp Buffer
+  Size` only makes the mixing coarser and raises that floor.
 
-| Dsp Buffer Size | Firefox 136 | Chrome 152 |
-|---|---|---|
-| 512 | hundreds of replayed buffers per 25 s | hundreds |
-| 1024 | still crackles | still crackles |
-| 2048 | clean | a few replays per minute |
-| 4096 | clean | clean |
+**Web > Queued Output** (`Fmod/Web/queued_output`) set to false falls back to FMOD's own web output. That one
+double-buffers a single DSP block: when the main thread does not deliver the next block in time, the worklet plays
+the previous one again, which is heard as crackling. With it, keep **Dsp Buffer Size** at 2048 or more (the
+extension's web default in that case, and it warns below that); measured on the demo, 512 and 1024 crackle in
+Chrome and Firefox, 2048 is clean in Firefox and nearly so in Chrome, 4096 is clean in both.
 
-A larger buffer adds latency (2048 samples × 4 buffers ≈ 186 ms), which matters little for music and ambience.
-If your project sets the buffer size explicitly, give the web its own value with a feature override in
-`project.godot`:
-
-```
-[Fmod]
-
-DSP/dsp_buffer_size=512
-DSP/dsp_buffer_size.web=2048
-```
-
-Chrome's main thread pauses for about 100 ms once a second on some machines, even on an empty WebGL page.
-If Chrome still crackles at 2048 on your target machines, try 4096.
+The CI smoke test covers both: it plays music, then blocks every frame for 60 ms during three seconds and fails if
+the worklet ran dry (queued output) or replayed stale blocks (FMOD's output) for more than a quarter of the audio.
 
 ## Limitations
 
-- **No threads:** banks are read synchronously, and FMOD runs on the main thread (see above for the buffer size).
+- **No threads:** banks are read synchronously, and FMOD mixes on the main thread (see above).
 - **No FMOD plugins:** dynamic libraries can't be loaded on the web. Plugins would have to be linked into the template.
-- **User gesture:** FMOD only starts its output from a click or touch on the page. A key press, and Chromium's
-  `--autoplay-policy=no-user-gesture-required` flag, are not enough: FMOD's HTML5 output installs `click` and
-  `touchend` listeners on the window and resumes its AudioContext from there.
+- **User gesture:** audio only starts from a gesture on the page. The extension's queued output listens for
+  `click`, `touchend` and `keydown` on the window and resumes its AudioContext from the first one. FMOD's own
+  output (`Fmod/Web/queued_output` off) only installs `click` and `touchend` listeners, so a key press is not
+  enough with it. Chromium's `--autoplay-policy=no-user-gesture-required` flag is not enough for either: both
+  wait for the listener, not for the policy.
 - **Browsers:** Firefox hangs were reported early in PR #210, and later reports say it works. Chrome 152 and
   Firefox 136 on Linux were verified with this extension. Test the browsers you target.
 

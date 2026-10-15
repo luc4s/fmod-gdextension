@@ -30,6 +30,9 @@ namespace godot {
         // With 512 samples (11.6 ms at 44.1 kHz) a single slow frame makes the worklet replay stale audio,
         // which is heard as crackling. 2048 samples is clean in Firefox and nearly so in Chrome.
         static constexpr const int DEFAULT_DSP_BUFFER_SIZE_WEB = 2048;
+        // With the extension's queued web output the block only sets the mixing granularity, and a small one keeps
+        // the adaptive queue's floor low.
+        static constexpr const int DEFAULT_DSP_BUFFER_SIZE_WEB_QUEUED = 256;
         static constexpr const int DEFAULT_DSP_BUFFER_COUNT = 4;
 
         // Default buffer size for the platform this extension was built for.

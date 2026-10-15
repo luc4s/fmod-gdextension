@@ -36,10 +36,12 @@ class TestGlobal:
 		var perf_data: FmodPerformanceData = FmodServer.get_performance_data()
 		assert_not_null(perf_data, "Performance data should not be null.")
 		
-	# The demo leaves the DSP settings unset, so FMOD runs with the extension defaults:
-	# 512 samples, or 2048 on the web where the mixer runs on the main thread (see docs/advanced/2-web.md).
+	# The demo leaves the DSP settings unset, so FMOD runs with the extension defaults: 512 samples, except on the
+	# web with FMOD's own output where it is 2048 (see docs/advanced/2-web.md).
 	func _default_dsp_buffer_size() -> int:
-		return 2048 if OS.has_feature("web") else 512
+		if OS.has_feature("web") and not ProjectSettings.get_setting("Fmod/Web/queued_output", true):
+			return 2048
+		return 512
 
 	func test_assert_should_have_dsp_buffer_length():
 		var buffer_length = FmodServer.get_system_dsp_buffer_length()
