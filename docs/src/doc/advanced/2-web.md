@@ -105,9 +105,11 @@ the worklet ran dry (queued output) or replayed stale blocks (FMOD's output) for
 
 - **No threads:** banks are read synchronously, and FMOD mixes on the main thread (see above).
 - **No FMOD plugins:** dynamic libraries can't be loaded on the web. Plugins would have to be linked into the template.
-- **User gesture:** FMOD only starts its output from a click or touch on the page. A key press, and Chromium's
-  `--autoplay-policy=no-user-gesture-required` flag, are not enough: FMOD's HTML5 output installs `click` and
-  `touchend` listeners on the window and resumes its AudioContext from there.
+- **User gesture:** audio only starts from a gesture on the page. The extension's queued output listens for
+  `click`, `touchend` and `keydown` on the window and resumes its AudioContext from the first one. FMOD's own
+  output (`Fmod/Web/queued_output` off) only installs `click` and `touchend` listeners, so a key press is not
+  enough with it. Chromium's `--autoplay-policy=no-user-gesture-required` flag is not enough for either: both
+  wait for the listener, not for the policy.
 - **Browsers:** Firefox hangs were reported early in PR #210, and later reports say it works. Chrome 152 and
   Firefox 136 on Linux were verified with this extension. Test the browsers you target.
 

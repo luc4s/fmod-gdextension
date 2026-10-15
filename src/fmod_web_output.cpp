@@ -23,10 +23,8 @@ namespace {
         float* scratch = nullptr;
         bool installed = false;
         bool running = false;
-        bool filling = false;
         unsigned long long blocks_pushed = 0;
         unsigned int mixer_calls = 0;
-        unsigned int update_calls = 0;
     };
 
     OutputState g_state;
@@ -127,7 +125,7 @@ namespace {
         g_state.channels = 2;
 
         // Creates the AudioContext and the worklet node. Browsers only let audio start after a user gesture, so the
-        // context is resumed and the module loaded from the first click or touch on the page, like FMOD does.
+        // context is resumed and the module loaded from the first click, touch or key press on the page.
         g_state.rate = EM_ASM_INT(
           {
               const source = UTF8ToString($0);
@@ -150,10 +148,9 @@ namespace {
                   bumps: 0,
                   lastBumpTime: -1e9,
                   lastDecayTime: 0,
-                  lowestQueuedMs: 1e9
+                  lowestQueuedMs: 1e9,
+                  disposed: false
               });
-              Module.godotFmodOutput = state;
-              window.__godotFmodOutput = state;
               // Adaptive queue, like a VoIP jitter buffer: start short, grow when the worklet ran dry or nearly did,
               // shrink slowly after a quiet period. Returns how many blocks to mix now.
               state.blocksToMix = (blockFrames) => {
@@ -188,11 +185,13 @@ namespace {
                   return Math.max(0, Math.min(64, Math.floor((targetFrames - queued) / blockFrames)));
               };
               const url = URL.createObjectURL(new Blob([source], { type: "application/javascript" }));
+              // Parenthesised for the preprocessor too.
+              const gestures = (["click", "touchend", "keydown"]);
               const start = () => {
-                  window.removeEventListener("click", start, true);
-                  window.removeEventListener("touchend", start, true);
-                  window.removeEventListener("keydown", start, true);
+                  gestures.forEach((name) => window.removeEventListener(name, start, true));
+                  if (state.disposed) return;
                   state.ctx.resume().then(() => state.ctx.audioWorklet.addModule(url)).then(() => {
+                      if (state.disposed) return;
                       state.node = new AudioWorkletNode(state.ctx, "godot-fmod-output", { outputChannelCount: [2] });
                       state.node.port.onmessage = (event) => {
                           if (event.data && typeof event.data.underrunFrames === "number") {
@@ -208,9 +207,23 @@ namespace {
                       console.log("FMOD web output: AudioWorklet ready at " + state.ctx.sampleRate + " Hz");
                   }).catch((error) => console.log("FMOD web output: cannot start AudioWorklet: " + error));
               };
-              window.addEventListener("click", start, true);
-              window.addEventListener("touchend", start, true);
-              window.addEventListener("keydown", start, true);
+              // Called from close: the listeners of a context that never started would otherwise stay on the
+              // window and try to resume a closed context on the next click.
+              state.dispose = () => {
+                  state.disposed = true;
+                  gestures.forEach((name) => window.removeEventListener(name, start, true));
+                  if (state.node) { state.node.port.onmessage = null; state.node.disconnect(); state.node = null; }
+                  state.connected = false;
+                  state.ready = false;
+                  URL.revokeObjectURL(url);
+                  state.ctx.close().catch(() => {});
+                  if (Module.godotFmodOutput === state) Module.godotFmodOutput = null;
+                  if (window.__godotFmodOutput === state) window.__godotFmodOutput = null;
+              };
+              if (Module.godotFmodOutput && Module.godotFmodOutput.dispose) Module.godotFmodOutput.dispose();
+              Module.godotFmodOutput = state;
+              window.__godotFmodOutput = state;
+              gestures.forEach((name) => window.addEventListener(name, start, true));
               return state.ctx.sampleRate;
           },
           PROCESSOR_SOURCE,
@@ -242,8 +255,15 @@ namespace {
         g_state.running = true;
         EM_ASM({
             const state = Module.godotFmodOutput;
+            if (!state) return;
             state.wantConnected = true;
-            if (state.ready && !state.connected) { state.node.connect(state.ctx.destination); state.connected = true; }
+            if (state.ready && !state.connected) {
+                // Stop emptied the worklet queue: the consumption estimate starts again from an empty queue.
+                state.pushedFrames = 0;
+                state.baseTime = state.ctx.currentTime;
+                state.node.connect(state.ctx.destination);
+                state.connected = true;
+            }
         });
         return FMOD_OK;
     }
@@ -252,6 +272,7 @@ namespace {
         g_state.running = false;
         EM_ASM({
             const state = Module.godotFmodOutput;
+            if (!state) return;
             state.wantConnected = false;
             if (state.connected) { state.node.disconnect(); state.connected = false; }
             if (state.node) { state.node.port.postMessage("reset"); }
@@ -266,16 +287,47 @@ namespace {
         g_state.scratch = nullptr;
         EM_ASM({
             const state = Module.godotFmodOutput;
-            if (state && state.ctx) { state.ctx.close(); }
-            Module.godotFmodOutput = null;
+            if (state) state.dispose();
         });
         return FMOD_OK;
     }
 
-    // Called by FMOD from System::update.
+    // Mixes ahead until the worklet queue holds the current target depth. Only called from the mixer callback: with
+    // FMOD_OUTPUT_METHOD_MIX_DIRECT that is where FMOD expects readfrommixer, and with FMOD_INIT_MIX_FROM_UPDATE
+    // FMOD invokes it from System::update, once per frame.
+    void fill() {
+        if (!g_state.running || g_state.fmod_state == nullptr) { return; }
+
+        // The controller lives in JS, next to the context clock and the worklet's reports.
+        const int blocks = EM_ASM_INT(
+          {
+              const state = Module.godotFmodOutput;
+              if (!state || !state.ready || !state.connected) return 0;
+              return state.blocksToMix($0);
+          },
+          g_state.block_frames
+        );
+        for (int i = 0; i < blocks; i++) {
+            if (g_state.fmod_state->readfrommixer(g_state.fmod_state, g_state.scratch, g_state.block_frames) != FMOD_OK) {
+                break;
+            }
+            EM_ASM(
+              {
+                  const state = Module.godotFmodOutput;
+                  const samples = HEAPF32.slice($0 >> 2, ($0 >> 2) + $1 * $2);
+                  state.node.port.postMessage(samples, [samples.buffer]);
+                  state.pushedFrames += $1;
+              },
+              g_state.scratch,
+              g_state.block_frames,
+              g_state.channels
+            );
+            g_state.blocks_pushed++;
+        }
+    }
+
+    // Called by FMOD from System::update (housekeeping only, the mixing happens in cb_mixer).
     FMOD_RESULT F_CALL cb_update(FMOD_OUTPUT_STATE* p_state) {
-        g_state.update_calls++;
-        FmodWebOutput::fill();
         return FMOD_OK;
     }
 
@@ -283,7 +335,7 @@ namespace {
     FMOD_RESULT F_CALL cb_mixer(FMOD_OUTPUT_STATE* p_state) {
         if (g_state.mixer_calls == 0) { GODOT_LOG_VERBOSE("FMOD web output: FMOD drives the mixer callback from System::update") }
         g_state.mixer_calls++;
-        FmodWebOutput::fill();
+        fill();
         return FMOD_OK;
     }
 
@@ -331,38 +383,6 @@ bool FmodWebOutput::install(FMOD::System* p_core_system, int p_queue_min_ms, int
 
 bool FmodWebOutput::is_installed() {
     return g_state.installed;
-}
-
-void FmodWebOutput::fill() {
-    if (!g_state.installed || !g_state.running || g_state.fmod_state == nullptr || g_state.filling) { return; }
-    g_state.filling = true;
-
-    // The controller lives in JS, next to the context clock and the worklet's reports.
-    const int blocks = EM_ASM_INT(
-      {
-          const state = Module.godotFmodOutput;
-          if (!state || !state.ready || !state.connected) return 0;
-          return state.blocksToMix($0);
-      },
-      g_state.block_frames
-    );
-    for (int i = 0; i < blocks; i++) {
-        if (g_state.fmod_state->readfrommixer(g_state.fmod_state, g_state.scratch, g_state.block_frames) != FMOD_OK) { break; }
-        EM_ASM(
-          {
-              const state = Module.godotFmodOutput;
-              const samples = HEAPF32.slice($0 >> 2, ($0 >> 2) + $1 * $2);
-              state.node.port.postMessage(samples, [samples.buffer]);
-              state.pushedFrames += $1;
-          },
-          g_state.scratch,
-          g_state.block_frames,
-          g_state.channels
-        );
-        g_state.blocks_pushed++;
-    }
-
-    g_state.filling = false;
 }
 
 #endif// WEB_ENABLED
