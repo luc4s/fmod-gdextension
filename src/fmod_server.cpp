@@ -14,6 +14,7 @@
 
 #include <classes/node3d.hpp>
 #include <classes/project_settings.hpp>
+#include <constants.h>
 
 using namespace godot;
 
