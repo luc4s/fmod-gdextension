@@ -23,8 +23,11 @@ namespace {
         float* scratch = nullptr;
         bool installed = false;
         bool running = false;
+        bool filling = false;
         unsigned long long blocks_pushed = 0;
         unsigned int mixer_calls = 0;
+        unsigned int update_calls = 0;
+        const char* first_driver = nullptr;
     };
 
     OutputState g_state;
@@ -292,52 +295,24 @@ namespace {
         return FMOD_OK;
     }
 
-    // Mixes ahead until the worklet queue holds the current target depth. Only called from the mixer callback: with
-    // FMOD_OUTPUT_METHOD_MIX_DIRECT that is where FMOD expects readfrommixer, and with FMOD_INIT_MIX_FROM_UPDATE
-    // FMOD invokes it from System::update, once per frame.
-    void fill() {
-        if (!g_state.running || g_state.fmod_state == nullptr) { return; }
-
-        // The controller lives in JS, next to the context clock and the worklet's reports.
-        const int blocks = EM_ASM_INT(
-          {
-              const state = Module.godotFmodOutput;
-              if (!state || !state.ready || !state.connected) return 0;
-              return state.blocksToMix($0);
-          },
-          g_state.block_frames
-        );
-        for (int i = 0; i < blocks; i++) {
-            if (g_state.fmod_state->readfrommixer(g_state.fmod_state, g_state.scratch, g_state.block_frames) != FMOD_OK) {
-                break;
-            }
-            EM_ASM(
-              {
-                  const state = Module.godotFmodOutput;
-                  const samples = HEAPF32.slice($0 >> 2, ($0 >> 2) + $1 * $2);
-                  state.node.port.postMessage(samples, [samples.buffer]);
-                  state.pushedFrames += $1;
-              },
-              g_state.scratch,
-              g_state.block_frames,
-              g_state.channels
-            );
-            g_state.blocks_pushed++;
-        }
-    }
-
     // Called by FMOD from System::update (housekeeping only, the mixing happens in cb_mixer).
     FMOD_RESULT F_CALL cb_update(FMOD_OUTPUT_STATE* p_state) {
+        g_state.update_calls++;
+        FmodWebOutput::fill("the output's update callback");
         return FMOD_OK;
     }
 
-    // Called by FMOD when it wants the output to mix (from System::update with FMOD_INIT_MIX_FROM_UPDATE).
+    // Called by FMOD when it wants the output to mix. Measured on the HTML5 build without threads: FMOD does not
+    // invoke it from System::update even with FMOD_INIT_MIX_FROM_UPDATE (a build that mixed only from here never
+    // produced a block), hence the other two callers of fill().
     FMOD_RESULT F_CALL cb_mixer(FMOD_OUTPUT_STATE* p_state) {
-        if (g_state.mixer_calls == 0) { GODOT_LOG_VERBOSE("FMOD web output: FMOD drives the mixer callback from System::update") }
         g_state.mixer_calls++;
-        fill();
+        FmodWebOutput::fill("the output's mixer callback");
         return FMOD_OK;
     }
+
+
+
 
     FMOD_OUTPUT_DESCRIPTION g_description = {
       FMOD_OUTPUT_PLUGIN_VERSION,
@@ -383,6 +358,46 @@ bool FmodWebOutput::install(FMOD::System* p_core_system, int p_queue_min_ms, int
 
 bool FmodWebOutput::is_installed() {
     return g_state.installed;
+}
+
+// Mixes ahead until the worklet queue holds the current target depth. On this build the caller that actually
+// delivers blocks is FmodServer::update, right after System::update; FMOD's own callbacks are wired too and the
+// first caller that mixes is logged once, so a change of behaviour in a future FMOD shows up in the console.
+void FmodWebOutput::fill(const char* p_driver) {
+    if (!g_state.installed || !g_state.running || g_state.fmod_state == nullptr || g_state.filling) { return; }
+    g_state.filling = true;
+    const unsigned long long before = g_state.blocks_pushed;
+    // The controller lives in JS, next to the context clock and the worklet's reports.
+    const int blocks = EM_ASM_INT(
+      {
+          const state = Module.godotFmodOutput;
+          if (!state || !state.ready || !state.connected) return 0;
+          return state.blocksToMix($0);
+      },
+      g_state.block_frames
+    );
+    for (int i = 0; i < blocks; i++) {
+        if (g_state.fmod_state->readfrommixer(g_state.fmod_state, g_state.scratch, g_state.block_frames) != FMOD_OK) {
+            break;
+        }
+        EM_ASM(
+          {
+              const state = Module.godotFmodOutput;
+              const samples = HEAPF32.slice($0 >> 2, ($0 >> 2) + $1 * $2);
+              state.node.port.postMessage(samples, [samples.buffer]);
+              state.pushedFrames += $1;
+          },
+          g_state.scratch,
+          g_state.block_frames,
+          g_state.channels
+        );
+        g_state.blocks_pushed++;
+    }
+    if (g_state.first_driver == nullptr && g_state.blocks_pushed > before) {
+        g_state.first_driver = p_driver;
+        GODOT_LOG_INFO(vformat("FMOD web output: mixing driven by %s", p_driver))
+    }
+    g_state.filling = false;
 }
 
 #endif// WEB_ENABLED

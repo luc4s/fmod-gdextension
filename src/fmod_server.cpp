@@ -223,8 +223,7 @@ void FmodServer::init(const Ref<FmodGeneralSettings>& p_settings) {
           DEFAULT_WEB_QUEUE_MAX_MS
         );
         if (queued_output && FmodWebOutput::install(coreSystem, queue_min_ms, queue_max_ms)) {
-            // Without threads the mixer has to run from System::update, which then calls the output's mixer
-            // callback, where the output tops the queue up.
+            // Without threads the mixer has to run from System::update; the queue is topped up right after it.
             init_flags |= FMOD_INIT_MIX_FROM_UPDATE;
         }
     }
@@ -317,6 +316,10 @@ void FmodServer::update() {
 #endif
 
     ERROR_CHECK(system->update());
+
+#if defined(WEB_ENABLED)
+    FmodWebOutput::fill("FmodServer.update");
+#endif
 }
 
 void FmodServer::_set_listener_attributes() {
