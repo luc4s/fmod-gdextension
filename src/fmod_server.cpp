@@ -4,6 +4,7 @@
 #include "core/fmod_sound.h"
 #include "data/performance_data.h"
 #include "fmod_logging.h"
+#include "fmod_web_output.h"
 #include "helpers/common.h"
 #include "helpers/maths.h"
 #include "plugins/ios_plugins_loader.h"
@@ -203,6 +204,20 @@ void FmodServer::init(const Ref<FmodGeneralSettings>& p_settings) {
 
     FMOD_INITFLAGS init_flags = FMOD_INIT_3D_RIGHTHANDED;
 
+#if defined(WEB_ENABLED)
+    // Prototype: mix ahead into a queue read by our own AudioWorklet instead of FMOD's double-buffered output.
+    // Fmod/Web/queued_output (default true) switches it, Fmod/Web/queue_ms (default 200) is the queue depth.
+    {
+        ProjectSettings* project_settings = ProjectSettings::get_singleton();
+        bool queued_output = project_settings->get_setting("Fmod/Web/queued_output", true);
+        int queue_ms = project_settings->get_setting("Fmod/Web/queue_ms", 200);
+        if (queued_output && FmodWebOutput::install(coreSystem, queue_ms)) {
+            // Without threads the mixer has to run from System::update, where the output tops the queue up.
+            init_flags |= FMOD_INIT_MIX_FROM_UPDATE;
+        }
+    }
+#endif
+
     if (ERROR_CHECK(system->initialize(p_settings->get_channel_count(), studio_init_flags, init_flags, nullptr))) {
         isInitialized = true;
         GODOT_LOG_INFO("FMOD Sound System: Successfully initialized")
@@ -290,6 +305,10 @@ void FmodServer::update() {
 #endif
 
     ERROR_CHECK(system->update());
+
+#if defined(WEB_ENABLED)
+    FmodWebOutput::fill();
+#endif
 }
 
 void FmodServer::_set_listener_attributes() {

@@ -70,11 +70,12 @@ const initScript = `(() => {
     constructor(context, name, options) {
       super(context, name, options);
       const channels = (options && options.outputChannelCount && options.outputChannelCount[0]) || 2;
-      const node = { name, messages: 0, bufferFrames: 0, bufferMs: 0, stalls: 0, replayed: 0, maxGapMs: 0 };
+      const node = { name, messages: 0, bufferFrames: 0, bufferMs: 0, stalls: 0, replayed: 0, maxGapMs: 0, pushed: 0, underrunFrames: 0 };
       stats.nodes.push(node);
       let last = 0;
-      this.port.addEventListener("message", () => {
+      this.port.addEventListener("message", (event) => {
         node.messages++;
+        if (event.data && typeof event.data.underrunFrames === "number") node.underrunFrames = event.data.underrunFrames;
         const now = performance.now();
         if (last && node.bufferMs) {
           const gap = now - last;
@@ -86,9 +87,12 @@ const initScript = `(() => {
       });
       const postMessage = this.port.postMessage.bind(this.port);
       this.port.postMessage = (data, ...rest) => {
-        if (!node.bufferFrames && data && typeof data.length === "number") {
-          node.bufferFrames = data.length / channels;
-          node.bufferMs = node.bufferFrames / context.sampleRate * 1000;
+        if (data && typeof data.length === "number") {
+          node.pushed++;
+          if (!node.bufferFrames) {
+            node.bufferFrames = data.length / channels;
+            node.bufferMs = node.bufferFrames / context.sampleRate * 1000;
+          }
         }
         return postMessage(data, ...rest);
       };
@@ -234,6 +238,13 @@ try {
   console.log(`Could not remove ${userDataDir}: ${error.message}`);
 }
 
+// FMOD's own output node is "audio-processor"; the extension's queued output node is "godot-fmod-output".
+const queuedNode = audioStats?.nodes.find((node) => node.name === "godot-fmod-output");
+if (queuedNode && queuedNode.pushed) {
+  const pushedFrames = queuedNode.pushed * queuedNode.bufferFrames;
+  console.log(`FMOD queued output: ${queuedNode.bufferFrames} frames per block (${queuedNode.bufferMs.toFixed(1)} ms), `
+    + `${queuedNode.pushed} blocks pushed, ${queuedNode.underrunFrames} underrun frames (${(100 * queuedNode.underrunFrames / pushedFrames).toFixed(1)}%)`);
+}
 const fmodNode = audioStats?.nodes.find((node) => node.name === "audio-processor");
 if (fmodNode && fmodNode.messages) {
   const replayedPercent = (100 * fmodNode.replayed / fmodNode.messages).toFixed(1);
@@ -246,13 +257,24 @@ if (fmodNode && fmodNode.messages) {
 const maxReplayedPercent = 25;
 
 if (result && result.includes("FMOD_WEB_OK")) {
-  if (!fmodNode || !fmodNode.messages) {
-    console.error("Smoke test failed: the timeline advanced but FMOD's AudioWorklet node never exchanged buffers");
-    process.exit(1);
-  }
-  if (100 * fmodNode.replayed / fmodNode.messages > maxReplayedPercent) {
-    console.error(`Smoke test failed: FMOD replayed more than ${maxReplayedPercent}% of its buffers, the audio crackles`);
-    process.exit(1);
+  if (queuedNode) {
+    if (!queuedNode.pushed) {
+      console.error("Smoke test failed: the timeline advanced but no block reached the queued output worklet");
+      process.exit(1);
+    }
+    if (100 * queuedNode.underrunFrames / (queuedNode.pushed * queuedNode.bufferFrames) > maxReplayedPercent) {
+      console.error(`Smoke test failed: the queued output ran dry for more than ${maxReplayedPercent}% of the audio`);
+      process.exit(1);
+    }
+  } else {
+    if (!fmodNode || !fmodNode.messages) {
+      console.error("Smoke test failed: the timeline advanced but FMOD's AudioWorklet node never exchanged buffers");
+      process.exit(1);
+    }
+    if (100 * fmodNode.replayed / fmodNode.messages > maxReplayedPercent) {
+      console.error(`Smoke test failed: FMOD replayed more than ${maxReplayedPercent}% of its buffers, the audio crackles`);
+      process.exit(1);
+    }
   }
   console.log(`Smoke test passed: ${result}`);
   process.exit(0);
