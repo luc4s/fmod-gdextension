@@ -81,17 +81,22 @@ Without threads, FMOD mixes on the main thread, between Godot frames, and the so
 which runs in the browser's audio thread. The extension ships its own output for that (prototype, on by default):
 
 - Every frame, `FmodServer.update()` asks the worklet how much audio is still queued and mixes as many DSP blocks
-  as needed to keep **Web > Queue Ms** (`Fmod/Web/queue_ms`, default 200) of audio ahead.
-- A frame that takes longer than one block does not matter any more; only a freeze longer than the queue makes the
-  worklet run dry, in which case it plays silence until the mixer catches up.
-- The queue depth is the audio latency. 200 ms is comfortable for music and ambience; a game that triggers sounds
-  from player input may prefer 100 ms with a small DSP block size (512), at the cost of less tolerance to slow frames.
+  as needed to keep the queue at its target depth. A frame that takes longer than one block does not matter any
+  more; only a freeze longer than the queue makes the worklet run dry, in which case it plays silence until the
+  mixer catches up.
+- The target depth adapts, like a jitter buffer: it starts at **Web > Queue Min Ms** (`Fmod/Web/queue_min_ms`,
+  default 60), grows by half each time the worklet ran dry or nearly did, up to **Web > Queue Max Ms**
+  (`Fmod/Web/queue_max_ms`, default 300), and shrinks back slowly after fifteen seconds without trouble. On a
+  machine with regular frames the latency stays near the minimum; on one that hitches it rises just enough.
+- The queue depth is the audio latency, plus one DSP block. With this output the DSP block size defaults to 512 on
+  the web (12 ms at 44.1 kHz), so the floor is about 60 to 70 ms. A larger `Dsp Buffer Size` only makes the
+  mixing coarser and raises that floor.
 
 **Web > Queued Output** (`Fmod/Web/queued_output`) set to false falls back to FMOD's own web output. That one
 double-buffers a single DSP block: when the main thread does not deliver the next block in time, the worklet plays
 the previous one again, which is heard as crackling. With it, keep **Dsp Buffer Size** at 2048 or more (the
-extension's web default when the project leaves it unset, and it warns below that); measured on the demo, 512 and
-1024 crackle in Chrome and Firefox, 2048 is clean in Firefox and nearly so in Chrome, 4096 is clean in both.
+extension's web default in that case, and it warns below that); measured on the demo, 512 and 1024 crackle in
+Chrome and Firefox, 2048 is clean in Firefox and nearly so in Chrome, 4096 is clean in both.
 
 The CI smoke test covers both: it plays music, then blocks every frame for 60 ms during three seconds and fails if
 the worklet ran dry (queued output) or replayed stale blocks (FMOD's output) for more than a quarter of the audio.

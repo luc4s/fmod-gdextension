@@ -103,8 +103,13 @@ void FmodEditorPlugin::_ready() {
       Variant::Type::BOOL
     );
     add_setting(
-      vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MS),
-      DEFAULT_WEB_QUEUE_MS,
+      vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MIN_MS),
+      DEFAULT_WEB_QUEUE_MIN_MS,
+      Variant::Type::INT
+    );
+    add_setting(
+      vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MAX_MS),
+      DEFAULT_WEB_QUEUE_MAX_MS,
       Variant::Type::INT
     );
 

@@ -18,7 +18,8 @@ namespace {
         int rate = 48000;
         int channels = 2;
         unsigned int block_frames = 0;
-        int queue_ms = 200;
+        int queue_min_ms = 60;
+        int queue_max_ms = 300;
         float* scratch = nullptr;
         bool installed = false;
         bool running = false;
@@ -41,6 +42,7 @@ namespace {
       "    this.offset = 0;"
       "    this.underrunFrames = 0;"
       "    this.lastReport = 0;"
+      "    this.wasDry = false;"
       "    this.port.onmessage = (event) => {"
       "      if (event.data instanceof Float32Array) this.queue.push(event.data);"
       "      else if (event.data === 'reset') { this.queue = []; this.offset = 0; }"
@@ -67,10 +69,13 @@ namespace {
       "    }"
       "    if (written < frames) {"
       "      this.underrunFrames += frames - written;"
-      "      if (currentFrame - this.lastReport >= sampleRate) {"
+      "      if (!this.wasDry || currentFrame - this.lastReport >= sampleRate) {"
       "        this.lastReport = currentFrame;"
-      "        this.port.postMessage({ underrunFrames: this.underrunFrames, queued: this.queue.length });"
+      "        this.port.postMessage({ dry: !this.wasDry, underrunFrames: this.underrunFrames, queued: this.queue.length });"
       "      }"
+      "      this.wasDry = true;"
+      "    } else {"
+      "      this.wasDry = false;"
       "    }"
       "    return true;"
       "  }"
@@ -136,10 +141,52 @@ namespace {
                   baseTime: 0,
                   underrunFrames: 0,
                   queuedInWorklet: 0,
-                  blockFrames: $1
+                  blockFrames: $1,
+                  minMs: $2,
+                  maxMs: $3,
+                  targetMs: $2,
+                  dryPending: false,
+                  dryEvents: 0,
+                  bumps: 0,
+                  lastBumpTime: -1e9,
+                  lastDecayTime: 0,
+                  lowestQueuedMs: 1e9
               });
               Module.godotFmodOutput = state;
               window.__godotFmodOutput = state;
+              // Adaptive queue, like a VoIP jitter buffer: start short, grow when the worklet ran dry or nearly did,
+              // shrink slowly after a quiet period. Returns how many blocks to mix now.
+              state.blocksToMix = (blockFrames) => {
+                  const rate = state.ctx.sampleRate;
+                  const now = state.ctx.currentTime;
+                  const consumed = Math.floor((now - state.baseTime) * rate);
+                  let queued = state.pushedFrames - consumed;
+                  let dry = state.dryPending;
+                  state.dryPending = false;
+                  if (queued < 0) {
+                      // The estimate says the queue ran dry: re-base so it starts from empty again.
+                      state.baseTime = now - state.pushedFrames / rate;
+                      queued = 0;
+                      dry = true;
+                  }
+                  const queuedMs = queued * 1000 / rate;
+                  if (queuedMs < state.lowestQueuedMs) state.lowestQueuedMs = queuedMs;
+                  const blockMs = blockFrames * 1000 / rate;
+                  // The queue can never usefully be shorter than two blocks plus the worklet's own quantum.
+                  const floorMs = Math.max(state.minMs, 2 * blockMs + 128 * 1000 / rate);
+                  if ((dry || queued < blockFrames) && now - state.lastBumpTime > 0.5) {
+                      state.targetMs = Math.min(state.maxMs, Math.max(floorMs, state.targetMs * 1.5 + blockMs));
+                      state.lastBumpTime = now;
+                      state.lastDecayTime = now;
+                      state.bumps++;
+                      if (dry) state.dryEvents++;
+                  } else if (now - state.lastBumpTime > 15 && now - state.lastDecayTime > 1 && state.targetMs > floorMs) {
+                      state.targetMs = Math.max(floorMs, state.targetMs - 10);
+                      state.lastDecayTime = now;
+                  }
+                  const targetFrames = Math.max(floorMs, state.targetMs) * rate / 1000;
+                  return Math.max(0, Math.min(64, Math.floor((targetFrames - queued) / blockFrames)));
+              };
               const url = URL.createObjectURL(new Blob([source], { type: "application/javascript" }));
               const start = () => {
                   window.removeEventListener("click", start, true);
@@ -151,6 +198,7 @@ namespace {
                           if (event.data && typeof event.data.underrunFrames === "number") {
                               state.underrunFrames = event.data.underrunFrames;
                               state.queuedInWorklet = event.data.queued;
+                              if (event.data.dry) state.dryPending = true;
                           }
                       };
                       state.ready = true;
@@ -166,7 +214,9 @@ namespace {
               return state.ctx.sampleRate;
           },
           PROCESSOR_SOURCE,
-          p_dspbufferlength
+          p_dspbufferlength,
+          g_state.queue_min_ms,
+          g_state.queue_max_ms
         );
 
         *r_outputrate = g_state.rate;
@@ -178,10 +228,11 @@ namespace {
         g_state.scratch = new float[g_state.block_frames * g_state.channels];
         GODOT_LOG_INFO(
           vformat(
-            "FMOD web output: queued AudioWorklet output, %d Hz, %d frames per block, %d ms queue",
+            "FMOD web output: queued AudioWorklet output, %d Hz, %d frames per block, adaptive queue %d to %d ms",
             g_state.rate,
             g_state.block_frames,
-            g_state.queue_ms
+            g_state.queue_min_ms,
+            g_state.queue_max_ms
           )
         )
         return FMOD_OK;
@@ -260,9 +311,10 @@ namespace {
     };
 }// namespace
 
-bool FmodWebOutput::install(FMOD::System* p_core_system, int p_queue_ms) {
+bool FmodWebOutput::install(FMOD::System* p_core_system, int p_queue_min_ms, int p_queue_max_ms) {
     if (g_state.installed) { return true; }
-    g_state.queue_ms = p_queue_ms;
+    g_state.queue_min_ms = p_queue_min_ms;
+    g_state.queue_max_ms = p_queue_max_ms < p_queue_min_ms ? p_queue_min_ms : p_queue_max_ms;
     unsigned int handle = 0;
     if (p_core_system->registerOutput(&g_description, &handle) != FMOD_OK) {
         GODOT_LOG_ERROR("FMOD web output: cannot register the queued output, using FMOD's own output.")
@@ -285,27 +337,16 @@ void FmodWebOutput::fill() {
     if (!g_state.installed || !g_state.running || g_state.fmod_state == nullptr || g_state.filling) { return; }
     g_state.filling = true;
 
-    const int target_frames = g_state.queue_ms * g_state.rate / 1000;
-    // Never mix more than this per frame: a very long freeze is caught up gradually instead of in one burst.
-    const int max_blocks_per_fill = 64;
-    int pushed = 0;
-    while (pushed < max_blocks_per_fill) {
-        // How much audio is still queued, estimated from the context clock: the worklet consumes exactly
-        // sampleRate frames per second of context time, whether or not it has data.
-        const int queued = EM_ASM_INT({
-            const state = Module.godotFmodOutput;
-            if (!state || !state.ready || !state.connected) return -1;
-            const consumed = Math.floor((state.ctx.currentTime - state.baseTime) * state.ctx.sampleRate);
-            let queued = state.pushedFrames - consumed;
-            if (queued < 0) {
-                // The queue ran dry: re-base so the estimate starts from an empty queue again.
-                state.baseTime = state.ctx.currentTime - state.pushedFrames / state.ctx.sampleRate;
-                queued = 0;
-            }
-            return queued;
-        });
-        if (queued < 0 || queued + static_cast<int>(g_state.block_frames) > target_frames) { break; }
-
+    // The controller lives in JS, next to the context clock and the worklet's reports.
+    const int blocks = EM_ASM_INT(
+      {
+          const state = Module.godotFmodOutput;
+          if (!state || !state.ready || !state.connected) return 0;
+          return state.blocksToMix($0);
+      },
+      g_state.block_frames
+    );
+    for (int i = 0; i < blocks; i++) {
         if (g_state.fmod_state->readfrommixer(g_state.fmod_state, g_state.scratch, g_state.block_frames) != FMOD_OK) { break; }
         EM_ASM(
           {
@@ -318,7 +359,6 @@ void FmodWebOutput::fill() {
           g_state.block_frames,
           g_state.channels
         );
-        pushed++;
         g_state.blocks_pushed++;
     }
 

@@ -13,15 +13,17 @@ namespace godot {
     // is late the worklet replays the previous block, which is heard as crackling.
     //
     // This output keeps a queue instead. Every frame the main thread asks how much audio is still queued in the
-    // worklet and mixes as many DSP blocks as needed to keep `queue_ms` of audio ahead, so a frame that takes
-    // longer than one block no longer matters as long as it stays shorter than the queue.
+    // worklet and mixes as many DSP blocks as needed to keep the target depth ahead, so a frame that takes
+    // longer than one block no longer matters as long as it stays shorter than the queue. The depth adapts like a
+    // jitter buffer: it starts at `queue_min_ms`, grows when the worklet ran dry (or nearly) and shrinks slowly
+    // back after a quiet period, never above `queue_max_ms`.
     class FmodWebOutput {
     public:
         // Registers the output with the core system and selects it. Must be called before System::init.
-        static bool install(FMOD::System* p_core_system, int p_queue_ms);
+        static bool install(FMOD::System* p_core_system, int p_queue_min_ms, int p_queue_max_ms);
         static bool is_installed();
 
-        // Mixes ahead until the worklet queue holds `queue_ms` of audio. Called every frame from FmodServer::update,
+        // Mixes ahead until the worklet queue holds the current target depth. Called every frame from FmodServer::update,
         // and from FMOD's own output callbacks when it invokes them.
         static void fill();
     };

@@ -207,18 +207,22 @@ void FmodServer::init(const Ref<FmodGeneralSettings>& p_settings) {
 
 #if defined(WEB_ENABLED)
     // Prototype: mix ahead into a queue read by our own AudioWorklet instead of FMOD's double-buffered output.
-    // Fmod/Web/queued_output (default true) switches it, Fmod/Web/queue_ms (default 200) is the queue depth.
+    // Fmod/Web/queued_output (default true) switches it, Fmod/Web/queue_min_ms and queue_max_ms bound the depth.
     {
         ProjectSettings* project_settings = ProjectSettings::get_singleton();
         bool queued_output = project_settings->get_setting(
           vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUED_OUTPUT),
           DEFAULT_WEB_QUEUED_OUTPUT
         );
-        int queue_ms = project_settings->get_setting(
-          vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MS),
-          DEFAULT_WEB_QUEUE_MS
+        int queue_min_ms = project_settings->get_setting(
+          vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MIN_MS),
+          DEFAULT_WEB_QUEUE_MIN_MS
         );
-        if (queued_output && FmodWebOutput::install(coreSystem, queue_ms)) {
+        int queue_max_ms = project_settings->get_setting(
+          vformat("%s/%s/%s", FMOD_SETTINGS_BASE_PATH, FMOD_WEB_SETTINGS_BASE_PATH, FMOD_WEB_SETTING_QUEUE_MAX_MS),
+          DEFAULT_WEB_QUEUE_MAX_MS
+        );
+        if (queued_output && FmodWebOutput::install(coreSystem, queue_min_ms, queue_max_ms)) {
             // Without threads the mixer has to run from System::update, where the output tops the queue up.
             init_flags |= FMOD_INIT_MIX_FROM_UPDATE;
         }

@@ -216,10 +216,16 @@ await page("Page.navigate", { url });
 await Promise.race([finished, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
 
 let audioStats = null;
+let queueStats = null;
 try {
   const { result: evaluated } = await page("Runtime.evaluate", { expression: "JSON.stringify(window.__audioStats)", returnByValue: true });
   audioStats = JSON.parse(evaluated.value);
   console.log(`AudioWorklet: ${JSON.stringify(audioStats)}`);
+  const { result: queue } = await page("Runtime.evaluate", {
+    expression: "(() => { const s = window.__godotFmodOutput; return s ? JSON.stringify({ minMs: s.minMs, maxMs: s.maxMs, targetMs: s.targetMs, bumps: s.bumps, dryEvents: s.dryEvents, lowestQueuedMs: s.lowestQueuedMs, underrunFrames: s.underrunFrames }) : null; })()",
+    returnByValue: true,
+  });
+  if (queue.value) queueStats = JSON.parse(queue.value);
 } catch (error) {
   console.log(`AudioWorklet: unavailable (${error.message})`);
 }
@@ -244,6 +250,10 @@ if (queuedNode && queuedNode.pushed) {
   const pushedFrames = queuedNode.pushed * queuedNode.bufferFrames;
   console.log(`FMOD queued output: ${queuedNode.bufferFrames} frames per block (${queuedNode.bufferMs.toFixed(1)} ms), `
     + `${queuedNode.pushed} blocks pushed, ${queuedNode.underrunFrames} underrun frames (${(100 * queuedNode.underrunFrames / pushedFrames).toFixed(1)}%)`);
+  if (queueStats) {
+    console.log(`FMOD queued output: adaptive queue ${queueStats.minMs}-${queueStats.maxMs} ms, now ${queueStats.targetMs.toFixed(0)} ms `
+      + `after ${queueStats.bumps} increases (${queueStats.dryEvents} dry), lowest observed depth ${queueStats.lowestQueuedMs.toFixed(0)} ms`);
+  }
 }
 const fmodNode = audioStats?.nodes.find((node) => node.name === "audio-processor");
 if (fmodNode && fmodNode.messages) {

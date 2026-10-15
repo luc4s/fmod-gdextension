@@ -9,8 +9,10 @@ static constexpr const bool DEFAULT_AUTO_INITIALIZE = true;
 // Web output: mix ahead into a queue read by the extension's AudioWorklet (see fmod_web_output.h).
 static constexpr const char* FMOD_WEB_SETTINGS_BASE_PATH = "Web";
 static constexpr const char* FMOD_WEB_SETTING_QUEUED_OUTPUT = "queued_output";
-static constexpr const char* FMOD_WEB_SETTING_QUEUE_MS = "queue_ms";
+static constexpr const char* FMOD_WEB_SETTING_QUEUE_MIN_MS = "queue_min_ms";
+static constexpr const char* FMOD_WEB_SETTING_QUEUE_MAX_MS = "queue_max_ms";
 static constexpr const bool DEFAULT_WEB_QUEUED_OUTPUT = true;
-static constexpr const int DEFAULT_WEB_QUEUE_MS = 200;
+static constexpr const int DEFAULT_WEB_QUEUE_MIN_MS = 60;
+static constexpr const int DEFAULT_WEB_QUEUE_MAX_MS = 300;
 
 #endif// GODOTFMOD_CONSTANTS_H
