@@ -295,16 +295,17 @@ namespace {
         return FMOD_OK;
     }
 
-    // Called by FMOD from System::update (housekeeping only, the mixing happens in cb_mixer).
+    // Called by FMOD from System::update. Measured on the HTML5 build without threads: this is the callback that
+    // actually runs each frame, so this is where the queue gets topped up (the smoke test logs the first caller).
     FMOD_RESULT F_CALL cb_update(FMOD_OUTPUT_STATE* p_state) {
         g_state.update_calls++;
         FmodWebOutput::fill("the output's update callback");
         return FMOD_OK;
     }
 
-    // Called by FMOD when it wants the output to mix. Measured on the HTML5 build without threads: FMOD does not
-    // invoke it from System::update even with FMOD_INIT_MIX_FROM_UPDATE (a build that mixed only from here never
-    // produced a block), hence the other two callers of fill().
+    // Called by FMOD when it wants the output to mix. Measured on the HTML5 build without threads: never invoked,
+    // even with FMOD_INIT_MIX_FROM_UPDATE (a build that mixed only from here never produced a block). Kept wired
+    // in case a future FMOD release behaves differently.
     FMOD_RESULT F_CALL cb_mixer(FMOD_OUTPUT_STATE* p_state) {
         g_state.mixer_calls++;
         FmodWebOutput::fill("the output's mixer callback");
@@ -361,8 +362,9 @@ bool FmodWebOutput::is_installed() {
 }
 
 // Mixes ahead until the worklet queue holds the current target depth. On this build the caller that actually
-// delivers blocks is FmodServer::update, right after System::update; FMOD's own callbacks are wired too and the
-// first caller that mixes is logged once, so a change of behaviour in a future FMOD shows up in the console.
+// delivers blocks is the output's update callback, inside System::update; the call from FmodServer::update right
+// after it is a safety net that normally finds the queue full. The first caller that mixes is logged once, so a
+// change of behaviour in a future FMOD shows up in the console.
 void FmodWebOutput::fill(const char* p_driver) {
     if (!g_state.installed || !g_state.running || g_state.fmod_state == nullptr || g_state.filling) { return; }
     g_state.filling = true;
