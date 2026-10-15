@@ -126,7 +126,8 @@ namespace {
         g_state.rate = EM_ASM_INT(
           {
               const source = UTF8ToString($0);
-              const state = {
+              // Parenthesised: the C preprocessor splits EM_ASM arguments on commas outside parentheses.
+              const state = ({
                   ctx: new (window.AudioContext || window.webkitAudioContext)(),
                   node: null,
                   ready: false,
@@ -135,8 +136,8 @@ namespace {
                   baseTime: 0,
                   underrunFrames: 0,
                   queuedInWorklet: 0,
-                  blockFrames: $1,
-              };
+                  blockFrames: $1
+              });
               Module.godotFmodOutput = state;
               window.__godotFmodOutput = state;
               const url = URL.createObjectURL(new Blob([source], { type: "application/javascript" }));
