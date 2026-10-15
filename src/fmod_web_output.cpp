@@ -32,6 +32,9 @@ namespace {
 
     OutputState g_state;
 
+    // Period of the JS refill timer, see timer_tick.
+    const int TIMER_INTERVAL_MS = 4;
+
     // The processor plays blocks from a queue. An empty queue is an underrun: it outputs silence and reports the
     // number of silent frames to the page (at most once per second).
     const char* PROCESSOR_SOURCE =
@@ -172,8 +175,9 @@ namespace {
                   const queuedMs = queued * 1000 / rate;
                   if (queuedMs < state.lowestQueuedMs) state.lowestQueuedMs = queuedMs;
                   const blockMs = blockFrames * 1000 / rate;
-                  // The queue can never usefully be shorter than two blocks plus the worklet's own quantum.
-                  const floorMs = Math.max(state.minMs, 2 * blockMs + 128 * 1000 / rate);
+                  // The queue can never usefully be shorter than one block, the worklet's own quantum and the time
+                  // between two refills.
+                  const floorMs = Math.max(state.minMs, blockMs + 128 * 1000 / rate + 2 * $4);
                   if ((dry || queued < blockFrames) && now - state.lastBumpTime > 0.5) {
                       state.targetMs = Math.min(state.maxMs, Math.max(floorMs, state.targetMs * 1.5 + blockMs));
                       state.lastBumpTime = now;
@@ -214,6 +218,8 @@ namespace {
               // window and try to resume a closed context on the next click.
               state.dispose = () => {
                   state.disposed = true;
+                  if (state.timer && state.timer !== -1) { clearInterval(state.timer); }
+                  state.timer = null;
                   gestures.forEach((name) => window.removeEventListener(name, start, true));
                   if (state.node) { state.node.port.onmessage = null; state.node.disconnect(); state.node = null; }
                   state.connected = false;
@@ -232,7 +238,8 @@ namespace {
           PROCESSOR_SOURCE,
           p_dspbufferlength,
           g_state.queue_min_ms,
-          g_state.queue_max_ms
+          g_state.queue_max_ms,
+          TIMER_INTERVAL_MS
         );
 
         *r_outputrate = g_state.rate;
@@ -254,12 +261,28 @@ namespace {
         return FMOD_OK;
     }
 
+    // Refill between frames: a JS interval calls this through the shared wasm function table, so the queue only
+    // has to cover the work of one frame, not the interval between two frames.
+    void timer_tick() {
+        FmodWebOutput::fill("a 4 ms timer");
+    }
+
     FMOD_RESULT F_CALL cb_start(FMOD_OUTPUT_STATE* p_state) {
         g_state.running = true;
-        EM_ASM({
-            const state = Module.godotFmodOutput;
-            if (!state) return;
-            state.wantConnected = true;
+        EM_ASM(
+          {
+              const state = Module.godotFmodOutput;
+              if (!state) return;
+              if (!state.timer) {
+                  if (typeof wasmTable !== "undefined" && wasmTable.get) {
+                      const tick = wasmTable.get($0);
+                      state.timer = setInterval(() => { if (state.ready && state.connected) tick(); }, $1);
+                  } else {
+                      console.log("FMOD web output: no wasm table access, refilling once per frame only");
+                      state.timer = -1;
+                  }
+              }
+              state.wantConnected = true;
             if (state.ready && !state.connected) {
                 // Stop emptied the worklet queue: the consumption estimate starts again from an empty queue.
                 state.pushedFrames = 0;
@@ -267,7 +290,10 @@ namespace {
                 state.node.connect(state.ctx.destination);
                 state.connected = true;
             }
-        });
+          },
+          reinterpret_cast<int>(&timer_tick),
+          TIMER_INTERVAL_MS
+        );
         return FMOD_OK;
     }
 
@@ -277,6 +303,8 @@ namespace {
             const state = Module.godotFmodOutput;
             if (!state) return;
             state.wantConnected = false;
+            if (state.timer && state.timer !== -1) { clearInterval(state.timer); }
+            state.timer = null;
             if (state.connected) { state.node.disconnect(); state.connected = false; }
             if (state.node) { state.node.port.postMessage("reset"); }
         });

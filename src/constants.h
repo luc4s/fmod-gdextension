@@ -12,7 +12,7 @@ static constexpr const char* FMOD_WEB_SETTING_QUEUED_OUTPUT = "queued_output";
 static constexpr const char* FMOD_WEB_SETTING_QUEUE_MIN_MS = "queue_min_ms";
 static constexpr const char* FMOD_WEB_SETTING_QUEUE_MAX_MS = "queue_max_ms";
 static constexpr const bool DEFAULT_WEB_QUEUED_OUTPUT = true;
-static constexpr const int DEFAULT_WEB_QUEUE_MIN_MS = 60;
+static constexpr const int DEFAULT_WEB_QUEUE_MIN_MS = 30;
 static constexpr const int DEFAULT_WEB_QUEUE_MAX_MS = 300;
 
 #endif// GODOTFMOD_CONSTANTS_H

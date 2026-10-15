@@ -80,17 +80,18 @@ Banks are exported like on other platforms, and they are read through Godot's fi
 Without threads, FMOD mixes on the main thread, between Godot frames, and the sound is played by an AudioWorklet,
 which runs in the browser's audio thread. The extension ships its own output for that (prototype, on by default):
 
-- Every frame, `FmodServer.update()` asks the worklet how much audio is still queued and mixes as many DSP blocks
-  as needed to keep the queue at its target depth. A frame that takes longer than one block does not matter any
-  more; only a freeze longer than the queue makes the worklet run dry, in which case it plays silence until the
-  mixer catches up.
+- A 4 ms timer, running between Godot frames, and FMOD's update callback both ask the worklet how much audio is
+  still queued and mix as many DSP blocks as needed to keep the queue at its target depth. A frame that takes
+  longer than one block does not matter any more; only a freeze longer than the queue makes the worklet run dry,
+  in which case it plays silence until the mixer catches up.
 - The target depth adapts, like a jitter buffer: it starts at **Web > Queue Min Ms** (`Fmod/Web/queue_min_ms`,
-  default 60), grows by half each time the worklet ran dry or nearly did, up to **Web > Queue Max Ms**
+  default 30), grows by half each time the worklet ran dry or nearly did, up to **Web > Queue Max Ms**
   (`Fmod/Web/queue_max_ms`, default 300), and shrinks back slowly after fifteen seconds without trouble. On a
   machine with regular frames the latency stays near the minimum; on one that hitches it rises just enough.
-- The queue depth is the audio latency, plus one DSP block. With this output the DSP block size defaults to 512 on
-  the web (12 ms at 44.1 kHz), so the floor is about 60 to 70 ms. A larger `Dsp Buffer Size` only makes the
-  mixing coarser and raises that floor.
+- The queue depth is the audio latency, plus one DSP block and the browser's own output latency. With this output
+  the DSP block size defaults to 256 on the web (6 ms at 44.1 kHz), so the extension's part of the latency is
+  about 40 ms at the minimum, comparable to FMOD's desktop default of 512 x 4 samples. A larger `Dsp Buffer
+  Size` only makes the mixing coarser and raises that floor.
 
 **Web > Queued Output** (`Fmod/Web/queued_output`) set to false falls back to FMOD's own web output. That one
 double-buffers a single DSP block: when the main thread does not deliver the next block in time, the worklet plays
